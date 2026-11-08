@@ -72,17 +72,17 @@ pub fn normalize(v: NumVec) NumVec {
 
 /// Entity::getDirectionVector()
 pub fn directionVector(yaw: f64, pitch: f64) NumVec {
-    const y = sin(deg2rad(pitch)) * -1;
+    const y = num.negf(sin(deg2rad(pitch)));
     const xz = cos(deg2rad(pitch));
-    const x = (xz * -1) * sin(deg2rad(yaw));
+    const x = num.negf(xz) * sin(deg2rad(yaw));
     const z = xz * cos(deg2rad(yaw));
     return normalize(.{ Num.f(x), Num.f(y), Num.f(z) });
 }
 
 /// Entity::getDirectionPlane() before Vector2 wrapping.
 pub fn directionPlane(yaw: f64) [2]f64 {
-    const x = cos(deg2rad(yaw) - pi_2) * -1;
-    const y = sin(deg2rad(yaw) - pi_2) * -1;
+    const x = num.negf(cos(deg2rad(yaw) - pi_2));
+    const y = num.negf(sin(deg2rad(yaw) - pi_2));
     const len = x * x + y * y;
     if (len > 0) {
         const s = @sqrt(len);
@@ -114,7 +114,7 @@ pub fn lookAt(eye: NumVec, target: NumVec) [2]f64 {
     const z_dist = target[2].sub(eye[2]);
     const horizontal = @sqrt(square(x_dist).add(square(z_dist)).toFloat());
     const vertical = target[1].sub(eye[1]).toFloat();
-    const pitch = (atan2(vertical, horizontal) * -1) / pi * 180;
+    const pitch = num.negf(atan2(vertical, horizontal)) / pi * 180;
     var yaw = atan2(z_dist.toFloat(), x_dist.toFloat()) / pi * 180 - 90;
     if (yaw < 0) yaw += 360.0;
     return .{ yaw, pitch };

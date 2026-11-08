@@ -628,14 +628,14 @@ pub const Vector2 = struct {
 
     pub fn subtract(ctx: Ctx, x: f64, y: f64) Error!void {
         const v = try self2(ctx);
-        newV2(rt.ret(ctx), v[0] + x * -1, v[1] + y * -1);
+        newV2(rt.ret(ctx), v[0] + num.negf(x), v[1] + num.negf(y));
     }
 
     pub fn subtractVector(ctx: Ctx) Error!void {
         try ctx.call.expectArgCount(1, 1);
         const v = try self2(ctx);
         const o = try argV2(ctx, 1);
-        newV2(rt.ret(ctx), v[0] + o[0] * -1, v[1] + o[1] * -1);
+        newV2(rt.ret(ctx), v[0] + num.negf(o[0]), v[1] + num.negf(o[1]));
     }
 
     // Vector2::ceil()/floor() pass (int) results to float parameters, so they come back as floats.

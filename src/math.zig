@@ -147,14 +147,14 @@ pub const Math = struct {
             const s = @sqrt(discriminant);
             rt.newArray(out, 2);
             var zv: c.zval = undefined;
-            rt.setDouble(&zv, (b * -1 + s) / (2 * a));
+            rt.setDouble(&zv, (num.negf(b) + s) / (2 * a));
             _ = c.zend_hash_next_index_insert(out.value.arr, &zv);
-            rt.setDouble(&zv, (b * -1 - s) / (2 * a));
+            rt.setDouble(&zv, (num.negf(b) - s) / (2 * a));
             _ = c.zend_hash_next_index_insert(out.value.arr, &zv);
         } else if (discriminant == 0.0) {
             rt.newArray(out, 1);
             var zv: c.zval = undefined;
-            rt.setDouble(&zv, (b * -1) / (2 * a));
+            rt.setDouble(&zv, (num.negf(b)) / (2 * a));
             _ = c.zend_hash_next_index_insert(out.value.arr, &zv);
         } else {
             rt.newArray(out, 0);

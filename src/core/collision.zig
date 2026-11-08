@@ -403,7 +403,7 @@ pub fn move(region: *const Region, allocator: Allocator, bb: Box, wanted: Vec, s
         dz = clipAxis(2, list.items, step_bb, dz);
         step_bb = step_bb.offset(along(2, dz));
 
-        const reverse = clipAxis(1, list.items, step_bb, dy * -1);
+        const reverse = clipAxis(1, list.items, step_bb, num.negf(dy));
         dy += reverse;
         step_bb = step_bb.offset(along(1, reverse));
 

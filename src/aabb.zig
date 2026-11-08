@@ -199,11 +199,11 @@ pub const AxisAlignedBB = struct {
     }
 
     pub fn trim(ctx: Ctx, face: i64, distance: f64) Error!void {
-        try mutate(ctx, try extendBox(try self(ctx), face, distance * -1));
+        try mutate(ctx, try extendBox(try self(ctx), face, core.num.negf(distance)));
     }
 
     pub fn trimmedCopy(ctx: Ctx, face: i64, distance: f64) Error!void {
-        try cloned(ctx, try extendBox(try self(ctx), face, distance * -1));
+        try cloned(ctx, try extendBox(try self(ctx), face, core.num.negf(distance)));
     }
 
     pub fn stretch(ctx: Ctx, axis: i64, distance: f64) Error!void {
@@ -215,11 +215,11 @@ pub const AxisAlignedBB = struct {
     }
 
     pub fn squash(ctx: Ctx, axis: i64, distance: f64) Error!void {
-        try mutate(ctx, try stretchBox(try self(ctx), axis, distance * -1));
+        try mutate(ctx, try stretchBox(try self(ctx), axis, core.num.negf(distance)));
     }
 
     pub fn squashedCopy(ctx: Ctx, axis: i64, distance: f64) Error!void {
-        try cloned(ctx, try stretchBox(try self(ctx), axis, distance * -1));
+        try cloned(ctx, try stretchBox(try self(ctx), axis, core.num.negf(distance)));
     }
 
     fn calculateOffset(ctx: Ctx, comptime axis: usize) Error!f64 {

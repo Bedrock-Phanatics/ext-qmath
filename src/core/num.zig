@@ -51,7 +51,10 @@ pub const Num = union(enum) {
 
     /// Unary minus, which PHP compiles to a multiplication by -1.
     pub fn neg(a: Num) Num {
-        return mul(a, .{ .int = -1 });
+        return switch (a) {
+            .int => mul(a, .{ .int = -1 }),
+            .float => |v| .{ .float = negf(v) },
+        };
     }
 
     /// abs() for int|float.
@@ -69,6 +72,14 @@ pub const Num = union(enum) {
         };
     }
 };
+
+// Loaded at run time so the optimizer cannot turn `x * -1` into a sign flip, which differs from PHP for NaN.
+var minus_one: f64 = -1;
+
+/// `-$x` for a float, which PHP evaluates as `$x * -1`.
+pub inline fn negf(x: f64) f64 {
+    return x * @as(*volatile f64, &minus_one).*;
+}
 
 /// zend_dval_to_lval(): the (int) cast of a float, modular for out of range values.
 pub fn dvalToLval(d: f64) i64 {

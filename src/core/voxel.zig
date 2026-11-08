@@ -86,7 +86,7 @@ pub const Ray = struct {
 fn distanceFactorToBoundary(s: f64, ds: f64) f64 {
     if (ds == 0.0) return std.math.inf(f64);
     return if (ds < 0)
-        (s - @floor(s)) / (ds * -1)
+        (s - @floor(s)) / num.negf(ds)
     else
         (1 - (s - @floor(s))) / ds;
 }
