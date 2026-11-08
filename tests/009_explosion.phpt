@@ -67,9 +67,9 @@ bool(true)
 int(1352)
 int(56)
 ValueError: (5, 5, 5) is not one of the explosion's rays
-ValueError: Invalid explosion parameters: radius and stepLen must be positive and finite, rays between 2 and 64
-ValueError: Invalid explosion parameters: radius and stepLen must be positive and finite, rays between 2 and 64
-ValueError: Invalid explosion parameters: radius and stepLen must be positive and finite, rays between 2 and 64
+ValueError: Invalid explosion parameters: radius and stepLen must be positive and finite, rays between 2 and 64, and the rays at most 1e8 steps long in total
+ValueError: Invalid explosion parameters: radius and stepLen must be positive and finite, rays between 2 and 64, and the rays at most 1e8 steps long in total
+ValueError: Invalid explosion parameters: radius and stepLen must be positive and finite, rays between 2 and 64, and the rays at most 1e8 steps long in total
 qmath\CollisionDataException: The explosion reaches outside the resistance grid
 ValueError: Resistance must not be NAN, use setInvalid()
 ValueError: Expected 74088 bytes, one double per cell

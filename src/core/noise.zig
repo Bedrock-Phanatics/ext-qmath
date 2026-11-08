@@ -18,7 +18,8 @@ const G22: f64 = G2 * 2.0 - 1.0;
 const F3: f64 = 1.0 / 3.0;
 const G3: f64 = 1.0 / 6.0;
 
-pub const max_samples: usize = 1 << 24;
+/// Quark samples 16x128x16 per chunk, this leaves ample room while bounding one native call.
+pub const max_samples: usize = 1 << 20;
 
 pub const Error = error{ OutOfMemory, InvalidArgument };
 

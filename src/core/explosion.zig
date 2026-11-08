@@ -9,7 +9,8 @@ const NumVec = @import("geom.zig").NumVec;
 const pow = @import("libm.zig").powFn;
 
 pub const max_cells: usize = 1 << 22;
-const max_steps_per_ray: f64 = 1_000_000;
+/// Steps over all rays of one explosion, since nothing can interrupt the native loop.
+const max_steps: f64 = 100_000_000;
 
 pub const Error = error{ OutOfMemory, OutOfRange, UnknownCell, RegionTooLarge, InvalidArgument };
 
@@ -124,7 +125,7 @@ pub const Params = struct {
         if (!std.math.isFinite(self.radius) or self.radius <= 0) return error.InvalidArgument;
         if (self.rays < 2 or self.rays > 64) return error.InvalidArgument;
         if (!std.math.isFinite(self.step_len) or self.step_len <= 0) return error.InvalidArgument;
-        if (self.radius * 1.3 / (self.step_len * 0.75) > max_steps_per_ray) return error.InvalidArgument;
+        if (self.radius * 1.3 / (self.step_len * 0.75) * @as(f64, @floatFromInt(rayCount(self.rays))) > max_steps) return error.InvalidArgument;
     }
 };
 

@@ -17,7 +17,7 @@ fn fail(err: anyerror) Error {
         error.UnknownCell => rt.throwCe(region.exception_ce, "The explosion reaches a cell with no resistance data"),
         error.OutOfRange => rt.throwCe(region.exception_ce, "The explosion reaches outside the resistance grid"),
         error.RegionTooLarge => rt.valueError("Grid bounds are inverted or exceed CollisionRegion::MAX_CELLS", .{}),
-        error.InvalidArgument => rt.valueError("Invalid explosion parameters: radius and stepLen must be positive and finite, rays between 2 and 64", .{}),
+        error.InvalidArgument => rt.valueError("Invalid explosion parameters: radius and stepLen must be positive and finite, rays between 2 and 64, and the rays at most 1e8 steps long in total", .{}),
         else => region.fail(err),
     };
 }
@@ -44,7 +44,7 @@ pub const Grid = struct {
         const g = (try self.get());
         const out = rt.ret(ctx);
         rt.newArray(out, 6);
-        for ([6]i64{ g.min[0], g.min[1], g.min[2], g.min[0] + g.size[0] - 1, g.min[1] + g.size[1] - 1, g.min[2] + g.size[2] - 1 }) |v| {
+        for ([6]i64{ g.min[0], g.min[1], g.min[2], g.min[0] + (g.size[0] - 1), g.min[1] + (g.size[1] - 1), g.min[2] + (g.size[2] - 1) }) |v| {
             var zv: c.zval = undefined;
             rt.setLong(&zv, v);
             _ = c.zend_hash_next_index_insert(out.value.arr, &zv);
