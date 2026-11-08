@@ -1,6 +1,7 @@
 const phpz = @import("phpz");
 const extension = @import("extension_info");
 
+const rt = @import("rt.zig");
 const vector = @import("vector.zig");
 const aabb = @import("aabb.zig");
 const math = @import("math.zig");
@@ -49,7 +50,9 @@ comptime {
 }
 
 fn startup() !void {
-    @import("core/root.zig").libm.init();
+    const libm = @import("core/root.zig").libm;
+    libm.init();
+    if (!libm.native) rt.c.zend_error(rt.c.E_CORE_WARNING, "qmath: C runtime math functions were not found, trigonometry may differ from PHP in the last bit");
     vector.startup();
     aabb.startup();
     math.startup();

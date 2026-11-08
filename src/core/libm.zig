@@ -36,8 +36,8 @@ fn zigPow(x: f64, y: f64) callconv(.c) f64 {
     return std.math.pow(f64, x, y);
 }
 
-extern "kernel32" fn GetModuleHandleA(name: ?[*:0]const u8) callconv(.c) ?*anyopaque;
-extern "kernel32" fn GetProcAddress(module: *anyopaque, name: [*:0]const u8) callconv(.c) ?*anyopaque;
+extern "kernel32" fn GetModuleHandleA(name: ?[*:0]const u8) callconv(.winapi) ?*anyopaque;
+extern "kernel32" fn GetProcAddress(module: *anyopaque, name: [*:0]const u8) callconv(.winapi) ?*anyopaque;
 
 const Resolver = struct {
     handle: *anyopaque,
@@ -50,8 +50,8 @@ const Resolver = struct {
 
 fn resolver() ?Resolver {
     if (builtin.os.tag == .windows) {
-        // PHP's official Windows builds link the Universal CRT dynamically.
-        for ([_][*:0]const u8{ "ucrtbase.dll", "api-ms-win-crt-math-l1-1-0.dll", "msvcrt.dll" }) |dll| {
+        // PHP's Windows builds link the Universal CRT dynamically, debug builds its debug variant.
+        for ([_][*:0]const u8{ "ucrtbase.dll", "ucrtbased.dll" }) |dll| {
             if (GetModuleHandleA(dll)) |h| return .{ .handle = h };
         }
         return null;
