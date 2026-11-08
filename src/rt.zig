@@ -289,7 +289,8 @@ pub fn divisionByZero() Error {
 
 /// PHP's string conversion of a number, as used by concatenation and interpolation.
 pub const NumText = struct {
-    buf: [64]u8 = undefined,
+    /// Fits any `precision` setting, which zend_gcvt() caps at 318 digits.
+    buf: [512]u8 = undefined,
     len: usize = 0,
 
     pub fn of(n: Num) NumText {
