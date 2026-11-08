@@ -371,8 +371,10 @@ namespace quark\math {
     {
         private function __construct() {}
 
+        /** @return Vector3 null once the ray is exhausted */
         public function current(): ?Vector3 {}
 
+        /** @return int null once the ray is exhausted */
         public function key(): ?int {}
 
         public function next(): void {}
@@ -426,7 +428,7 @@ namespace quark\math\collision {
         /**
          * Replaces a chunk section.
          * @param string $infos 4096 collision info bytes indexed (x << 8) | (z << 4) | y, like SubChunk
-         * @param array<int, array|string> $boxes boxes of custom and may-overflow cells by the same index, as lists or packed strings
+         * @param array<int, mixed> $boxes lists of AxisAlignedBB or packed strings for the custom and may-overflow cells, by the same index
          */
         public function setSection(int $sectionX, int $sectionY, int $sectionZ, string $infos, array $boxes = []): void {}
 
@@ -657,7 +659,7 @@ namespace quark\math\noise {
     /** Native twin of Quark's Simplex generator, built from the same permutation and offsets. */
     final class Simplex
     {
-        /** @param array|string $permutation 256 or 512 entries, or a 256 or 512 byte string */
+        /** @param string|list<int> $permutation 256 or 512 entries, or a 256 or 512 byte string */
         public function __construct(array|string $permutation, float $offsetX, float $offsetY, float $offsetZ, int $octaves, float $persistence, float $expansion) {}
 
         public function getNoise2D(float $x, float $y): float {}
