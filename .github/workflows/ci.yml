@@ -1,0 +1,141 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+env:
+  ZIG_VERSION: 0.17.1
+  PHP_VERSION: "8.4"
+
+jobs:
+  linux:
+    name: Linux PHP 8.4 ${{ matrix.ts }} ${{ matrix.optimize }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        ts: [nts, ts]
+        optimize: [Debug, ReleaseSafe]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: none
+          tools: none
+          coverage: none
+        env:
+          phpts: ${{ matrix.ts }}
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ env.ZIG_VERSION }}
+
+      - name: Zig unit tests
+        run: zig build test -Doptimize=${{ matrix.optimize }}
+
+      - name: Build
+        run: zig build -Doptimize=${{ matrix.optimize }} -Dphp-include-dir="$(php-config --include-dir)"
+
+      - name: Load
+        run: |
+          php -n -d extension="$PWD/modules/qmath.so" -m | grep -x qmath
+          php -n -d extension="$PWD/modules/qmath.so" --ri qmath
+
+      - name: PHPT
+        run: |
+          zig build run-tests -Doptimize=${{ matrix.optimize }} -Dphp-include-dir="$(php-config --include-dir)" 2>&1 | tee phpt.log
+          grep -Eq '^Tests failed +: +0 ' phpt.log
+
+      - name: Differential tests against QuarkMath
+        run: |
+          git clone --depth 1 -b stable https://github.com/Bedrock-Phanatics/QuarkMath ../QuarkMath
+          git clone --depth 1 -b 0.3.1 https://github.com/pmmp/Color ../Color
+          QUARKMATH_SRC=../QuarkMath/src PMCOLOR_SRC=../Color/src php tests/diff/run.php --ext="$PWD/modules/qmath.so" --seed=${{ github.run_number }} --scale=2
+
+      - name: Arginfo is up to date
+        if: matrix.ts == 'nts' && matrix.optimize == 'Debug'
+        run: |
+          zig build gen-stub -Dphp-include-dir="$(php-config --include-dir)"
+          git diff --exit-code qmath_arginfo.h
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.optimize == 'ReleaseSafe'
+        with:
+          name: qmath-linux-x86_64-php8.4-${{ matrix.ts }}
+          path: modules/qmath.so
+
+  windows:
+    name: Windows PHP 8.4 ${{ matrix.ts }}
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        ts: [ts, nts]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: none
+          tools: none
+          coverage: none
+        env:
+          phpts: ${{ matrix.ts }}
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ env.ZIG_VERSION }}
+
+      - name: PHP devel pack
+        shell: pwsh
+        run: |
+          $version = php -r "echo PHP_VERSION;"
+          $flavor = if ("${{ matrix.ts }}" -eq "ts") { "" } else { "-nts" }
+          $name = "php-devel-pack-$version$flavor-Win32-vs17-x64.zip"
+          try {
+            Invoke-WebRequest "https://windows.php.net/downloads/releases/$name" -OutFile devel.zip
+          } catch {
+            Invoke-WebRequest "https://windows.php.net/downloads/releases/archives/$name" -OutFile devel.zip
+          }
+          Expand-Archive devel.zip -DestinationPath devel
+          $dir = (Get-ChildItem devel -Directory | Select-Object -First 1).FullName
+          "PHP_DEVEL=$dir" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          $zts = if ("${{ matrix.ts }}" -eq "ts") { "true" } else { "false" }
+          "PHP_ZTS=$zts" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+
+      - name: Zig unit tests
+        run: zig build test
+
+      - name: Build
+        shell: pwsh
+        run: zig build -Doptimize=ReleaseSafe -Dtarget=native-windows-msvc "-Dphp-include-dir=$env:PHP_DEVEL\include" "-Dphp-lib-dir=$env:PHP_DEVEL\lib" "-Dwindows-zts=$env:PHP_ZTS"
+
+      - name: Load
+        shell: pwsh
+        run: |
+          php -n -d "extension=$PWD\modules\php_qmath.dll" --ri qmath
+          if (-not (php -n -d "extension=$PWD\modules\php_qmath.dll" -m | Select-String -Pattern '^qmath$')) { exit 1 }
+
+      - name: PHPT
+        shell: pwsh
+        run: |
+          zig build run-tests -Doptimize=ReleaseSafe -Dtarget=native-windows-msvc "-Dphp-include-dir=$env:PHP_DEVEL\include" "-Dphp-lib-dir=$env:PHP_DEVEL\lib" "-Dwindows-zts=$env:PHP_ZTS" 2>&1 | Tee-Object phpt.log
+          if (-not (Select-String -Path phpt.log -Pattern '^Tests failed +: +0 ')) { exit 1 }
+
+      - name: Differential tests against QuarkMath
+        shell: pwsh
+        run: |
+          git clone --depth 1 -b stable https://github.com/Bedrock-Phanatics/QuarkMath ..\QuarkMath
+          git clone --depth 1 -b 0.3.1 https://github.com/pmmp/Color ..\Color
+          $env:QUARKMATH_SRC = (Resolve-Path ..\QuarkMath\src).Path
+          $env:PMCOLOR_SRC = (Resolve-Path ..\Color\src).Path
+          php tests/diff/run.php "--ext=$PWD\modules\php_qmath.dll" --seed=${{ github.run_number }} --scale=2
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qmath-windows-x64-php8.4-${{ matrix.ts }}
+          path: modules/php_qmath.dll
