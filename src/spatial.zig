@@ -57,6 +57,8 @@ pub const Spatial = struct {
             if (rt.ztype(zv) != rt.IS_OBJECT) return typeErrorArg(1, "must contain only objects, %s found", zv);
             const o: rt.ZObj = zv.value.obj;
             if (o == exclude) continue;
+            rt.hold(o);
+            defer rt.release(o);
             var rv: c.zval = undefined;
             rv.u1.type_info = rt.IS_UNDEF;
             const res = o.handlers.*.read_property.?(o, name, c.BP_VAR_R, null, &rv);

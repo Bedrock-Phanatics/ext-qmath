@@ -163,11 +163,10 @@ fn init(o: ZObj, rows_in: i64, cols_in: i64, set: ?*c.zend_array) Error!void {
 
 fn setFrom(o: ZObj, m: ?*c.zend_array) Error!void {
     const d = try dims(o);
-    const arr = try writable(o);
     var r: i64 = 0;
     while (r < d.rows) : (r += 1) {
         var row: c.zval = undefined;
-        rt.newArray(&row, @intCast(@min(d.cols, 1 << 20)));
+        rt.newArray(&row, @intCast(std.math.clamp(d.cols, 0, 1 << 20)));
         const src_row: ?*c.zval = if (m) |mm| (if (c.zend_hash_index_find(mm, @bitCast(r))) |x| rt.deref(x) else null) else null;
         var col: i64 = 0;
         while (col < d.cols) : (col += 1) {
@@ -180,6 +179,11 @@ fn setFrom(o: ZObj, m: ?*c.zend_array) Error!void {
             }
             _ = c.zend_hash_next_index_insert(row.value.arr, &v);
         }
+        // Replacing a row can run destructors, so look the array up again each time.
+        const arr = writable(o) catch |e| {
+            c.zval_ptr_dtor(&row);
+            return e;
+        };
         _ = c.zend_hash_index_update(arr, @bitCast(r), &row);
     }
 }
@@ -237,9 +241,10 @@ pub const Matrix = struct {
     pub fn offsetSet(ctx: Ctx) Error!void {
         try ctx.call.expectArgCount(2, 2);
         const k = c.zval_get_long(rt.arg(ctx, 1));
+        const arr = try writable(rt.this(ctx));
         var v: c.zval = undefined;
         rt.copy(&v, rt.deref(rt.arg(ctx, 2)));
-        _ = c.zend_hash_index_update(try writable(rt.this(ctx)), @bitCast(k), &v);
+        _ = c.zend_hash_index_update(arr, @bitCast(k), &v);
     }
 
     pub fn offsetUnset(ctx: Ctx) Error!void {
@@ -291,7 +296,10 @@ pub const Matrix = struct {
         try sameShape(d, try dims(other));
         const out = rt.ret(ctx);
         const result = try construct(out, d.rows, d.cols);
+        // Warnings and string conversions can run PHP code, pinning keeps this array valid.
         const arr = try readable(o);
+        rt.pinArray(arr);
+        defer rt.unpinArray(arr);
         var r: i64 = 0;
         while (r < d.rows) : (r += 1) {
             var col: i64 = 0;
@@ -312,7 +320,10 @@ pub const Matrix = struct {
         const d = try dims(o);
         if (other) |m| try sameShape(d, try dims(m));
         const result = try cloneThis(ctx);
+        // Warnings and string conversions can run PHP code, pinning keeps this array valid.
         const arr = try readable(o);
+        rt.pinArray(arr);
+        defer rt.unpinArray(arr);
         var n: c.zval = undefined;
         rt.setDouble(&n, number);
         var r: i64 = 0;
@@ -347,7 +358,10 @@ pub const Matrix = struct {
         const o = rt.this(ctx);
         const d = try dims(o);
         const result = try construct(rt.ret(ctx), d.cols, d.rows);
+        // Warnings and string conversions can run PHP code, pinning keeps this array valid.
         const arr = try readable(o);
+        rt.pinArray(arr);
+        defer rt.unpinArray(arr);
         var r: i64 = 0;
         while (r < d.rows) : (r += 1) {
             var col: i64 = 0;
@@ -367,13 +381,17 @@ pub const Matrix = struct {
         const od = try dims(other);
         if (d.cols != od.rows) return rt.invalidArgument("Expected a matrix with {d} rows", .{d.cols});
         const result = try construct(rt.ret(ctx), d.rows, od.cols);
+        // Warnings and string conversions can run PHP code, pinning keeps this array valid.
         const arr = try readable(o);
+        rt.pinArray(arr);
+        defer rt.unpinArray(arr);
         var i: i64 = 0;
         while (i < d.rows) : (i += 1) {
             var j: i64 = 0;
             while (j < od.cols) : (j += 1) {
                 var sum: c.zval = undefined;
                 rt.setLong(&sum, 0);
+                defer c.zval_ptr_dtor(&sum);
                 var k: i64 = 0;
                 while (k < d.cols) : (k += 1) {
                     var e: c.zval = undefined;
@@ -386,7 +404,6 @@ pub const Matrix = struct {
                     c.zval_ptr_dtor(&sum);
                     sum = next;
                 }
-                defer c.zval_ptr_dtor(&sum);
                 try setElementChecked(result, i, j, &sum);
             }
         }
@@ -396,7 +413,10 @@ pub const Matrix = struct {
         const o = rt.this(ctx);
         const d = try dims(o);
         if (d.rows != d.cols) return rt.throwCe(rt.phpCe("spl_ce_LogicException"), "Cannot calculate determinant of a non-square matrix");
+        // Warnings and string conversions can run PHP code, pinning keeps this array valid.
         const arr = try readable(o);
+        rt.pinArray(arr);
+        defer rt.unpinArray(arr);
         const at = struct {
             fn f(a: *c.zend_array, r: i64, col: i64) c.zval {
                 return elementOrNull(a, r, col);
@@ -460,7 +480,10 @@ pub const Matrix = struct {
     pub fn __toString(ctx: Ctx) Error!void {
         const o = rt.this(ctx);
         const d = try dims(o);
+        // Warnings and string conversions can run PHP code, pinning keeps this array valid.
         const arr = try readable(o);
+        rt.pinArray(arr);
+        defer rt.unpinArray(arr);
         var buf: std.ArrayList(u8) = .empty;
         defer buf.deinit(rt.allocator);
         const rows = rt.NumText.of(rt.Num.i(d.rows));

@@ -98,13 +98,15 @@ pub fn instanceOf(o: ZObj, ce: Ce) bool {
 pub const Prop = struct {
     slot: u32 = 0,
     name: *c.zend_string = undefined,
+    /// Declaring class, the scope that can see the property even when it is private.
+    scope: Ce = undefined,
 
     pub fn resolve(ce: Ce, comptime name: []const u8) Prop {
         const zname = c.zend_string_init_interned.?(name.ptr, name.len, true);
         const found = c.zend_hash_find(&ce.properties_info, zname) orelse @panic("qmath: missing property " ++ name);
         const info: *c.zend_property_info = @ptrCast(@alignCast(found.*.value.ptr));
         const base = @offsetOf(c.zend_object, "_properties_table");
-        return .{ .slot = @intCast((@as(usize, info.offset) - base) / @sizeOf(c.zval)), .name = zname };
+        return .{ .slot = @intCast((@as(usize, info.offset) - base) / @sizeOf(c.zval)), .name = zname, .scope = info.ce };
     }
 };
 
@@ -154,10 +156,16 @@ pub inline fn readNum(o: ZObj, p: Prop, plain: bool) Error!Num {
     return readNumSlow(o, p);
 }
 
-/// Reads a float property. Typed float properties always hold a double once initialized.
+/// Reads a float property of a final class. Typed float properties always hold a double once initialized.
 pub inline fn readFloat(o: ZObj, p: Prop) Error!f64 {
     const zv = deref(&props(o)[p.slot]);
     if (ztype(zv) == IS_DOUBLE) return zv.value.dval;
+    return (try readNumSlow(o, p)).toFloat();
+}
+
+/// readFloat() for classes a subclass may redeclare with hooks.
+pub inline fn readFloatOf(o: ZObj, p: Prop, plain: bool) Error!f64 {
+    if (plain) return readFloat(o, p);
     return (try readNumSlow(o, p)).toFloat();
 }
 
@@ -189,7 +197,7 @@ pub fn writeNum(o: ZObj, p: Prop, plain: bool, n: Num) Error!void {
     }
     var tmp: c.zval = undefined;
     setNum(&tmp, n);
-    c.zend_update_property_ex(o.ce, o, p.name, &tmp);
+    c.zend_update_property_ex(p.scope, o, p.name, &tmp);
     if (phpz.exception.hasPending()) return error.PhpException;
 }
 
@@ -199,7 +207,7 @@ fn lazy(o: ZObj) bool {
 
 /// Writes any zval to a declared property through the regular write path.
 pub fn writeZval(o: ZObj, p: Prop, value: *c.zval) Error!void {
-    c.zend_update_property_ex(o.ce, o, p.name, value);
+    c.zend_update_property_ex(p.scope, o, p.name, value);
     if (phpz.exception.hasPending()) return error.PhpException;
 }
 
@@ -207,6 +215,24 @@ pub inline fn retObjectCopy(out: *c.zval, o: ZObj) void {
     o.gc.refcount += 1;
     out.value.obj = o;
     out.u1.type_info = c.IS_OBJECT_EX;
+}
+
+/// Keeps an object alive while PHP code, such as a property hook, may drop other references to it.
+pub inline fn hold(o: ZObj) void {
+    o.gc.refcount += 1;
+}
+
+pub inline fn release(o: ZObj) void {
+    c.zend_object_release(o);
+}
+
+/// Keeps an array alive and unmodified while PHP code may run, user writes then separate a copy.
+pub inline fn pinArray(arr: *c.zend_array) void {
+    if ((arr.gc.u.type_info & (c.GC_IMMUTABLE << c.GC_FLAGS_SHIFT)) == 0) arr.gc.refcount += 1;
+}
+
+pub inline fn unpinArray(arr: *c.zend_array) void {
+    c.zend_array_release(arr);
 }
 
 pub inline fn newArray(out: *c.zval, size: u32) void {
