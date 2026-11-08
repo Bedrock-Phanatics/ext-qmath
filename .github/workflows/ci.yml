@@ -45,7 +45,9 @@ jobs:
           php -n -d extension="$PWD/modules/qmath.so" --ri qmath
 
       - name: PHPT
+        shell: bash
         run: |
+          set -o pipefail
           zig build run-tests -Doptimize=${{ matrix.optimize }} -Dphp-include-dir="$(php-config --include-dir)" 2>&1 | tee phpt.log
           grep -Eq '^Tests failed +: +0 ' phpt.log
 
