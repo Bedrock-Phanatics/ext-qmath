@@ -181,6 +181,44 @@ pub const Backing = struct {
         };
     }
 
+    pub fn setSectionPalette(self: *Backing, ctx: Ctx) Error!void {
+        try ctx.call.expectArgCount(6, 6);
+        const sx = try sectionCoord(try ctx.call.expectArg(1, .{ .int = .{} }, {}));
+        const sy = try sectionCoord(try ctx.call.expectArg(2, .{ .int = .{} }, {}));
+        const sz = try sectionCoord(try ctx.call.expectArg(3, .{ .int = .{} }, {}));
+        const bpb = try ctx.call.expectArg(4, .{ .int = .{} }, {});
+        const words = try ctx.call.expectArg(5, .{ .string = .{} }, {});
+        const pal_bytes = try ctx.call.expectArg(6, .{ .string = .{} }, {});
+        if (pal_bytes.len == 0 or pal_bytes.len > collision.section_cells) return rt.valueError("paletteInfos must hold between 1 and 4096 entries", .{});
+        var palette: [collision.section_cells]collision.Info = undefined;
+        for (pal_bytes, palette[0..pal_bytes.len]) |b, *p| {
+            const info = collision.Info.fromInt(b) orelse return rt.valueError("Invalid collision info {d}", .{b});
+            // Cells with boxes are filled by setCell() afterwards
+            p.* = if (info == .custom or info == .may_overflow) .unknown else info;
+        }
+        var infos: [collision.section_cells]collision.Info = undefined;
+        collision.decodePalette(bpb, words, palette[0..pal_bytes.len], &infos) catch return rt.valueError("Word array does not match {d} bits per block and the palette", .{bpb});
+        (try self.get()).setSectionInfos(sx, sy, sz, &infos) catch |e| return switch (e) {
+            error.OutOfRange => rt.valueError("Section {d} {d} {d} is outside the supported world range", .{ sx, sy, sz }),
+            else => fail(e),
+        };
+        retIndexes(rt.ret(ctx), &infos);
+    }
+
+    pub fn unknownCells(self: *Backing, ctx: Ctx, sx: i64, sy: i64, sz: i64) Error!void {
+        var list: std.ArrayList(u16) = .empty;
+        defer list.deinit(rt.allocator);
+        const present = (try self.get()).unknownCells(try sectionCoord(sx), try sectionCoord(sy), try sectionCoord(sz), &list, rt.allocator) catch |e| return fail(e);
+        if (!present) return;
+        const out = rt.ret(ctx);
+        rt.newArray(out, @intCast(list.items.len));
+        for (list.items) |v| {
+            var zv: c.zval = undefined;
+            rt.setLong(&zv, v);
+            _ = c.zend_hash_next_index_insert(out.value.arr, &zv);
+        }
+    }
+
     pub fn fillBox(self: *Backing, min_x: i64, min_y: i64, min_z: i64, max_x: i64, max_y: i64, max_z: i64, info: i64) Error!void {
         (try self.get()).fillBox(.{ min_x, min_y, min_z }, .{ max_x, max_y, max_z }, try parseInfo(info)) catch |e| return switch (e) {
             error.InvalidInfo => rt.valueError("fillBox() only accepts INFO_NONE or INFO_CUBE", .{}),
@@ -319,6 +357,18 @@ pub inline fn readDouble(b: *const [8]u8) f64 {
 
 pub inline fn writeDouble(b: *[8]u8, v: f64) void {
     std.mem.writeInt(u64, b, @bitCast(v), .little);
+}
+
+fn retIndexes(out: *c.zval, infos: *const [collision.section_cells]collision.Info) void {
+    var n: u32 = 0;
+    for (infos) |i| n += @intFromBool(i == .unknown);
+    rt.newArray(out, @intCast(n));
+    for (infos, 0..) |info, i| {
+        if (info != .unknown) continue;
+        var zv: c.zval = undefined;
+        rt.setLong(&zv, @intCast(i));
+        _ = c.zend_hash_next_index_insert(out.value.arr, &zv);
+    }
 }
 
 fn retBoxes(out: *c.zval, boxes: []const Box) void {

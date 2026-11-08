@@ -1,5 +1,5 @@
 /* This is a generated file, edit the .stub.php file instead.
- * Stub hash: b599a3e064b844ccda65116b4996369a1e916e09 */
+ * Stub hash: 0de77f9b47694483132d0a26bf828fbb77320f93 */
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_class_quark_math_Axis___construct, 0, 0, 0)
 ZEND_END_ARG_INFO()
@@ -486,6 +486,21 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_quark_math_collision_Colli
 	ZEND_ARG_TYPE_INFO(0, sectionZ, IS_LONG, 0)
 	ZEND_ARG_TYPE_INFO(0, infos, IS_STRING, 0)
 	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(0, boxes, IS_ARRAY, 0, "[]")
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_quark_math_collision_CollisionRegion_setSectionPalette, 0, 6, IS_ARRAY, 0)
+	ZEND_ARG_TYPE_INFO(0, sectionX, IS_LONG, 0)
+	ZEND_ARG_TYPE_INFO(0, sectionY, IS_LONG, 0)
+	ZEND_ARG_TYPE_INFO(0, sectionZ, IS_LONG, 0)
+	ZEND_ARG_TYPE_INFO(0, bitsPerBlock, IS_LONG, 0)
+	ZEND_ARG_TYPE_INFO(0, words, IS_STRING, 0)
+	ZEND_ARG_TYPE_INFO(0, paletteInfos, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_quark_math_collision_CollisionRegion_unknownCells, 0, 3, IS_ARRAY, 1)
+	ZEND_ARG_TYPE_INFO(0, sectionX, IS_LONG, 0)
+	ZEND_ARG_TYPE_INFO(0, sectionY, IS_LONG, 0)
+	ZEND_ARG_TYPE_INFO(0, sectionZ, IS_LONG, 0)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_quark_math_collision_CollisionRegion_fillBox, 0, 7, IS_VOID, 0)
@@ -1038,6 +1053,8 @@ ZEND_METHOD(quark_math_collision_CollisionRegion, isKnown);
 ZEND_METHOD(quark_math_collision_CollisionRegion, setCell);
 ZEND_METHOD(quark_math_collision_CollisionRegion, setCellPacked);
 ZEND_METHOD(quark_math_collision_CollisionRegion, setSection);
+ZEND_METHOD(quark_math_collision_CollisionRegion, setSectionPalette);
+ZEND_METHOD(quark_math_collision_CollisionRegion, unknownCells);
 ZEND_METHOD(quark_math_collision_CollisionRegion, fillBox);
 ZEND_METHOD(quark_math_collision_CollisionRegion, missingSections);
 ZEND_METHOD(quark_math_collision_CollisionRegion, invalidateCell);
@@ -1303,6 +1320,8 @@ static const zend_function_entry class_quark_math_collision_CollisionRegion_meth
 	ZEND_ME(quark_math_collision_CollisionRegion, setCell, arginfo_class_quark_math_collision_CollisionRegion_setCell, ZEND_ACC_PUBLIC)
 	ZEND_ME(quark_math_collision_CollisionRegion, setCellPacked, arginfo_class_quark_math_collision_CollisionRegion_setCellPacked, ZEND_ACC_PUBLIC)
 	ZEND_ME(quark_math_collision_CollisionRegion, setSection, arginfo_class_quark_math_collision_CollisionRegion_setSection, ZEND_ACC_PUBLIC)
+	ZEND_ME(quark_math_collision_CollisionRegion, setSectionPalette, arginfo_class_quark_math_collision_CollisionRegion_setSectionPalette, ZEND_ACC_PUBLIC)
+	ZEND_ME(quark_math_collision_CollisionRegion, unknownCells, arginfo_class_quark_math_collision_CollisionRegion_unknownCells, ZEND_ACC_PUBLIC)
 	ZEND_ME(quark_math_collision_CollisionRegion, fillBox, arginfo_class_quark_math_collision_CollisionRegion_fillBox, ZEND_ACC_PUBLIC)
 	ZEND_ME(quark_math_collision_CollisionRegion, missingSections, arginfo_class_quark_math_collision_CollisionRegion_missingSections, ZEND_ACC_PUBLIC)
 	ZEND_ME(quark_math_collision_CollisionRegion, invalidateCell, arginfo_class_quark_math_collision_CollisionRegion_invalidateCell, ZEND_ACC_PUBLIC)

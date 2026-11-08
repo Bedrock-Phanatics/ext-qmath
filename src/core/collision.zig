@@ -339,6 +339,40 @@ pub const Region = struct {
         self.version +%= 1;
     }
 
+    /// Replaces a section with box-less cells. Cells given as unknown stay unknown until setCell() fills them.
+    pub fn setSectionInfos(self: *Region, sx: i32, sy: i32, sz: i32, infos: *const [section_cells]Info) Error!void {
+        if (!inRange(@as(i64, sx) * 16, @as(i64, sy) * 16, @as(i64, sz) * 16) or !inRange(@as(i64, sx) * 16 + 15, @as(i64, sy) * 16 + 15, @as(i64, sz) * 16 + 15)) return error.OutOfRange;
+        if (self.frozen) return error.Frozen;
+        var fresh = Section{ .unknown = 0 };
+        errdefer if (fresh.cells) |c| self.allocator.destroy(c);
+        if (infos[0] != .unknown and std.mem.allEqual(Info, infos, infos[0])) {
+            fresh.uniform = infos[0];
+        } else {
+            const cells = try self.allocator.create([section_cells]Cell);
+            fresh.cells = cells;
+            for (cells, infos) |*c, i| {
+                c.* = .{ .info = i };
+                if (i == .unknown) fresh.unknown += 1;
+            }
+        }
+        const s = try self.getOrCreate(sectionKey(sx, sy, sz));
+        if (s.cells) |c| self.allocator.destroy(c);
+        s.boxes.deinit(self.allocator);
+        s.* = fresh;
+        self.version +%= 1;
+    }
+
+    /// Appends the indexes of unknown cells. False when the section is not stored at all.
+    pub fn unknownCells(self: *const Region, sx: i32, sy: i32, sz: i32, out: *std.ArrayList(u16), allocator: Allocator) Error!bool {
+        const s = self.sections.get(sectionKey(sx, sy, sz)) orelse return false;
+        if (s.unknown == 0) return true;
+        try out.ensureUnusedCapacity(allocator, s.unknown);
+        for (0..section_cells) |i| {
+            if (s.cell(@intCast(i)).info == .unknown) out.appendAssumeCapacity(@intCast(i));
+        }
+        return true;
+    }
+
     /// `info` must be none or cube.
     pub fn fillBox(self: *Region, min: [3]i64, max: [3]i64, info: Info) Error!void {
         if (info != .none and info != .cube) return error.InvalidInfo;
@@ -575,6 +609,29 @@ pub fn collectBoxes(region: *const Region, allocator: Allocator, query: Box, lis
     try region.collisionBoxes(query, &sink);
 }
 
+/// Expands a PalettedBlockArray word array (little-endian u32 words, cells in localIndex() order) through `palette`.
+pub fn decodePalette(bits_per_block: i64, words: []const u8, palette: []const Info, out: *[section_cells]Info) error{InvalidPalette}!void {
+    if (palette.len == 0 or palette.len > section_cells) return error.InvalidPalette;
+    if (bits_per_block == 0) {
+        if (words.len != 0 or palette.len != 1) return error.InvalidPalette;
+        @memset(out, palette[0]);
+        return;
+    }
+    const bpb: u5 = switch (bits_per_block) {
+        1, 2, 3, 4, 5, 6, 8, 16 => @intCast(bits_per_block),
+        else => return error.InvalidPalette,
+    };
+    const per_word: usize = 32 / @as(usize, bpb);
+    if (words.len != (section_cells + per_word - 1) / per_word * 4) return error.InvalidPalette;
+    const mask: u32 = (@as(u32, 1) << bpb) - 1;
+    for (out, 0..) |*o, i| {
+        const word = std.mem.readInt(u32, words[i / per_word * 4 ..][0..4], .little);
+        const idx = (word >> @intCast((i % per_word) * bpb)) & mask;
+        if (idx >= palette.len) return error.InvalidPalette;
+        o.* = palette[idx];
+    }
+}
+
 /// Covers every query move() may make, for prefetching.
 pub fn queryBox(bb: Box, wanted: Vec, step_height: f64) Box {
     var q = bb.addCoord(wanted);
@@ -768,6 +825,67 @@ test "missing sections cover the query and its neighbours" {
     out.clearRetainingCapacity();
     try r.missingSections(Box.init(1, 1, 1, 2, 2, 2), &out, testing.allocator);
     try testing.expectEqualSlices(i64, &.{ 0, 0, 0 }, out.items);
+}
+
+test "partial sections report their unknown cells" {
+    var r = Region.init(testing.allocator, 64);
+    defer r.deinit();
+    var out: std.ArrayList(u16) = .empty;
+    defer out.deinit(testing.allocator);
+    try testing.expect(!try r.unknownCells(0, 0, 0, &out, testing.allocator));
+
+    var infos: [section_cells]Info = @splat(.none);
+    infos[localIndex(1, 2, 3)] = .unknown;
+    infos[localIndex(15, 15, 15)] = .unknown;
+    try r.setSectionInfos(0, 0, 0, &infos);
+    try testing.expect(try r.unknownCells(0, 0, 0, &out, testing.allocator));
+    try testing.expectEqualSlices(u16, &.{ localIndex(1, 2, 3), localIndex(15, 15, 15) }, out.items);
+
+    try r.setCell(1, 2, 3, .custom, &.{Box.init(1, 2, 3, 2, 2.5, 4)});
+    try r.setCell(15, 15, 15, .cube, &.{});
+    out.clearRetainingCapacity();
+    try testing.expect(try r.unknownCells(0, 0, 0, &out, testing.allocator));
+    try testing.expectEqual(@as(usize, 0), out.items.len);
+
+    try r.invalidateBlock(5, 5, 5);
+    out.clearRetainingCapacity();
+    _ = try r.unknownCells(0, 0, 0, &out, testing.allocator);
+    try testing.expectEqual(@as(usize, 7), out.items.len);
+
+    infos = @splat(.cube);
+    try r.setSectionInfos(0, 1, 0, &infos);
+    out.clearRetainingCapacity();
+    try testing.expect(try r.unknownCells(0, 1, 0, &out, testing.allocator));
+    try testing.expectEqual(@as(usize, 0), out.items.len);
+    var lk = Lookup{};
+    try testing.expectEqual(Info.cube, try r.cellInfo(&lk, 0, 16, 0));
+    try testing.expectError(error.OutOfRange, r.setSectionInfos(1 << 22, 0, 0, &infos));
+}
+
+test "palettes decode in word order" {
+    var out: [section_cells]Info = undefined;
+    const pal = [_]Info{ .none, .cube, .custom };
+    var words: [256 * 4]u8 = @splat(0);
+    // 2 bits per block, 16 per word: cell 1 is palette entry 1 and cell 17 is entry 2
+    words[0] = 0b0100;
+    words[4] = 0b1000;
+    try decodePalette(2, &words, &pal, &out);
+    try testing.expectEqual(Info.none, out[0]);
+    try testing.expectEqual(Info.cube, out[1]);
+    try testing.expectEqual(Info.custom, out[17]);
+    try decodePalette(0, "", pal[1..2], &out);
+    try testing.expect(std.mem.allEqual(Info, &out, .cube));
+    words[0] = 0b1100;
+    try testing.expectError(error.InvalidPalette, decodePalette(2, &words, &pal, &out));
+    try testing.expectError(error.InvalidPalette, decodePalette(2, words[0..8], &pal, &out));
+    try testing.expectError(error.InvalidPalette, decodePalette(7, &words, &pal, &out));
+    try testing.expectError(error.InvalidPalette, decodePalette(0, "", &pal, &out));
+    // 3 bits per block leaves 2 bits of padding per word
+    var w3: [410 * 4]u8 = @splat(0);
+    w3[4] = 0b010;
+    try decodePalette(3, &w3, &pal, &out);
+    try testing.expectEqual(Info.custom, out[10]);
+    try testing.expectEqual(Info.none, out[9]);
 }
 
 test "fence overflow boxes come from neighbouring cells" {

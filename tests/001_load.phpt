@@ -29,7 +29,7 @@ $info = ob_get_clean();
 var_dump(str_contains($info, 'qmath support => enabled'));
 --EXPECT--
 bool(true)
-string(5) "0.2.0"
+string(5) "0.3.0"
 bool(true)
 quark\color\Color final
 quark\math\Axis final static

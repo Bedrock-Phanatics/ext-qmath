@@ -430,6 +430,21 @@ namespace quark\math\collision {
          */
         public function setSection(int $sectionX, int $sectionY, int $sectionZ, string $infos, array $boxes = []): void {}
 
+        /**
+         * Replaces a chunk section from a SubChunk block layer without building the info string in PHP.
+         * Cells whose palette entry is INFO_CUSTOM or INFO_MAY_OVERFLOW stay unknown until setCell() gives their boxes.
+         * @param string $words PalettedBlockArray::getWordArray()
+         * @param string $paletteInfos one collision info byte per palette entry
+         * @return list<int> indexes of the cells left unknown, (x << 8) | (z << 4) | y
+         */
+        public function setSectionPalette(int $sectionX, int $sectionY, int $sectionZ, int $bitsPerBlock, string $words, string $paletteInfos): array {}
+
+        /**
+         * Indexes of the cells without collision data, null when the section is not stored at all.
+         * @return list<int>|null
+         */
+        public function unknownCells(int $sectionX, int $sectionY, int $sectionZ): ?array {}
+
         /** Marks every cell of an inclusive box as INFO_NONE or INFO_CUBE. */
         public function fillBox(int $minX, int $minY, int $minZ, int $maxX, int $maxY, int $maxZ, int $info): void {}
 
