@@ -58,7 +58,8 @@ pub fn newV3Float(out: *c.zval, v: rt.Vec) void {
 }
 
 pub fn readV2(o: ZObj) Error![2]f64 {
-    return .{ try rt.readFloat(o, v2[0]), try rt.readFloat(o, v2[1]) };
+    const plain = rt.plainSlots(o.ce, v2_ce, &v2);
+    return .{ try rt.readFloatOf(o, v2[0], plain), try rt.readFloatOf(o, v2[1], plain) };
 }
 
 pub fn newV2(out: *c.zval, x: f64, y: f64) void {

@@ -379,17 +379,15 @@ fn readProp(ctx: Ctx, p: rt.Prop) Error!void {
     const o = rt.this(ctx);
     var rv: c.zval = undefined;
     rv.u1.type_info = rt.IS_UNDEF;
+    defer c.zval_ptr_dtor(&rv);
     const slot = rt.deref(&rt.props(o)[p.slot]);
-    const src = if (rt.ztype(slot) != rt.IS_UNDEF) slot else blk: {
+    const plain = rt.plainSlots(o.ce, rtr_ce, &rtr);
+    const src = if (plain and rt.ztype(slot) != rt.IS_UNDEF) slot else blk: {
         const r = o.handlers.*.read_property.?(o, p.name, c.BP_VAR_R, null, &rv);
-        if (phpz.exception.hasPending()) {
-            if (r == &rv) c.zval_ptr_dtor(&rv);
-            return error.PhpException;
-        }
+        if (phpz.exception.hasPending()) return error.PhpException;
         break :blk rt.deref(r);
     };
     rt.copy(rt.ret(ctx), src);
-    if (src == &rv) c.zval_ptr_dtor(&rv);
 }
 
 pub const RayTraceResult = struct {
