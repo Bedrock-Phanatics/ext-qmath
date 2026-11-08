@@ -407,6 +407,7 @@ pub const Collision = struct {
         var best_val: ?*c.zval = null;
         var best_key: c.zval = undefined;
         rt.setNull(&best_key);
+        defer c.zval_ptr_dtor(&best_key);
         var pos: c.HashPosition = 0;
         c.zend_hash_internal_pointer_reset_ex(arr, &pos);
         while (c.zend_hash_get_current_data_ex(arr, &pos)) |raw| : (_ = c.zend_hash_move_forward_ex(arr, &pos)) {
@@ -420,11 +421,11 @@ pub const Collision = struct {
             if (best == null or s.time < best.?.time) {
                 best = s;
                 best_val = zv;
+                c.zval_ptr_dtor(&best_key);
                 c.zend_hash_get_current_key_zval_ex(arr, &best_key, &pos);
             }
         }
         const hit = best orelse return;
-        defer c.zval_ptr_dtor(&best_key);
         newSweepResult(rt.ret(ctx), hit.time, hit.face, best_val.?, &best_key);
     }
 };
