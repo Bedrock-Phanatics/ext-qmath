@@ -1,6 +1,6 @@
 # ext-qmath
 
-Native math, geometry, and physics for [Quark](https://github.com/Bedrock-Phanatics/Quark) v6, built with Zig 0.17.1 and [phpz](https://github.com/happystraw/phpz) for PHP 8.4.
+Native math, geometry, and physics for [Quark](https://github.com/Bedrock-Phanatics/Quark) v6, built with Zig 0.17 and [phpz](https://github.com/happystraw/phpz) for PHP 8.4.
 
 Provides Quark's math and color types natively under `quark\math` and `quark\color`, alongside optimized collision, physics, and noise APIs for performance-critical operations.
 
@@ -44,7 +44,8 @@ Measured on a Ryzen 5 5500 with PHP 8.4.14 ZTS and a ReleaseFast build, using `t
 use quark\math\collision\{CollisionRegion, CollisionSolver, Raycast};
 
 $region = new CollisionRegion();
-$region->setSection($sx, $sy, $sz, $infos, $boxes);
+// straight from a SubChunk block layer, returns the cells that still need their boxes
+$custom = $region->setSectionPalette($sx, $sy, $sz, $layer->getBitsPerBlock(), $layer->getWordArray(), $paletteInfos);
 
 $result = CollisionSolver::move(
     $region, $bb, $dx, $dy, $dz, 0.6, $onGround

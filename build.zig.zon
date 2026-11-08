@@ -2,7 +2,7 @@
     .name = .qmath,
     .version = "0.3.0",
     .fingerprint = 0x8af3e5338aa7a089,
-    .minimum_zig_version = "0.17.1",
+    .minimum_zig_version = "0.17.0",
     .dependencies = .{
         .phpz = .{
             .url = "git+https://github.com/happystraw/phpz#811e760391035f05adc37f13c5c97ceab728c719",
