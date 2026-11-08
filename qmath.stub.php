@@ -708,7 +708,7 @@ namespace qmath {
 
     final class Simplex
     {
-        /** @param array|string $permutation 256 or 512 entries, or a 512 byte string */
+        /** @param array|string $permutation 256 or 512 entries, or a 256 or 512 byte string */
         public function __construct(array|string $permutation, float $offsetX, float $offsetY, float $offsetZ, int $octaves, float $persistence, float $expansion) {}
 
         public function getNoise2D(float $x, float $y): float {}

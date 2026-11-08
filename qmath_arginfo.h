@@ -1,5 +1,5 @@
 /* This is a generated file, edit the .stub.php file instead.
- * Stub hash: 9d1d061f8636ddb4da8493debf8008fb34def0be */
+ * Stub hash: da995542fa4976849e4881b6faa5a8f617053bc7 */
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_class_pocketmine_math_Axis___construct, 0, 0, 0)
 ZEND_END_ARG_INFO()

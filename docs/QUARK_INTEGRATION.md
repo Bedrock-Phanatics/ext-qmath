@@ -177,7 +177,7 @@ with `ValueError`, and throws `CollisionDataException` if a needed section was n
 callers. The result has the same boxes, order and duplicates. `World::getCollisionBoxes()` and
 `Entity::checkObstruction()` then benefit without further changes.
 
-**Benefit:** the collision part of a move drops from 20–40 µs to 0.5–0.7 µs (bench `entity move`).
+**Benefit:** the collision part of a move drops from 24–51 µs to 0.7–1.0 µs (bench `entity move`, sparse and dense).
 **Validation:** add a debug flag that runs both the PHP path and `Collision::move()` and logs any difference in
 `dx`, `dy`, `dz`, the bounding box or the flags. Soak it on a busy server: stairs, slabs, fences, walls,
 scaffolding, honey, chunk borders, negative coordinates. Then switch. `tests/diff` is the offline version of
@@ -224,7 +224,7 @@ if(($found = \qmath\Raycast::boxes($start, $end, $boxes, 0.3)) !== null){
 `Raycast::boxes()` shortens the segment after each hit, exactly like the original loop. The rotation update in
 the no-hit branch can use `Physics::motionRotation($this->motion)`.
 
-**Benefit:** the block raycast drops from 11–15 µs to 0.3–0.4 µs. `Raycast::batchBlocks()` handles many segments in one call.
+**Benefit:** the block raycast drops from 14–15 µs to 0.3–0.5 µs. `Raycast::batchBlocks()` handles many segments in one call.
 **Validation:** run both paths side by side on arrows and tridents against slabs, fences, panes, chunk borders
 and long shots.
 
@@ -237,7 +237,8 @@ and long shots.
 
 Fill a `qmath\ResistanceGrid` covering the source ± `ceil(radius * 1.3 * 0.3 / 0.225) + 1`. The farthest a
 ray can travel is 1.733 × radius. Use `setInvalid()` where `SubChunkExplorer` returns `INVALID`, and
-`set($x, $y, $z, $blockFactory->blastResistance[$state] ?? 0)` everywhere else. Then:
+`set($x, $y, $z, $blockFactory->blastResistance[$state] ?? 0)` everywhere else. Keep the `radius < 0.1` early
+return at the top of `explodeA()`, because the native calls trace rays at any radius. Then:
 
 ```php
 $incendiary = $this->fireChance > 0;
@@ -259,19 +260,20 @@ if(!$incendiary){
 The native code calls `mt_rand(700, 1300)` once per ray, in the original order, through PHP's own generator.
 Seeded results and the RNG state afterwards are therefore identical. `traceRays()` drops cells it has already
 returned. That is equivalent to the `isset()` check because every `getAffectedBlocks()` in Quark (Block, Bed,
-Door, DoublePlant) includes the block itself. A plugin block whose `getAffectedBlocks()` leaves itself out would
+Door, DoublePlant, SmallDripleaf) includes the block itself. A plugin block whose `getAffectedBlocks()` leaves itself out would
 need the per-ray path.
 
 ### getExposure()
 
 ```php
+$o = $this->source;
 $region = $this->world->prepareCollision($entity->getBoundingBox()->union(new AxisAlignedBB($o->x, $o->y, $o->z, $o->x, $o->y, $o->z)));
 $exposure = \qmath\ExplosionMath::exposure($region, $this->source, $entity->getBoundingBox());
 ```
 
 `exposures()` takes an array of boxes keyed by entity id and returns the exposures with the same keys.
 
-**Benefit:** ray tracing goes from 12 ms to 0.3 ms at radius 4, and exposure from 350–410 µs to 4–7 µs per entity.
+**Benefit:** ray tracing goes from 8.5 ms to 0.4 ms at radius 4, and exposure from 350–500 µs to 5–7 µs per entity.
 **Validation:** seed `mt_srand()`, then compare `affectedBlocks`, the fire ignitions and `mt_rand()` afterwards between both paths.
 
 ## 5. World generation noise
@@ -291,7 +293,7 @@ same values as little-endian doubles, if a generator is rewritten to read a pack
 Generators run on worker threads. Construct `qmath\Simplex` on the thread that uses it, which Quark already does.
 It cannot be serialized or copied between threads.
 
-**Benefit:** a 16×128×16 sampled chunk drops from 5–6 ms to 0.24–0.37 ms (0.14 ms packed).
+**Benefit:** a 16×128×16 sampled chunk drops from 5.4 ms to 0.31 ms (0.085 ms packed).
 **Validation:** generate a few thousand chunks for several seeds with both implementations and compare chunk hashes.
 The differential suite already compares every noise method bit for bit.
 
@@ -299,9 +301,10 @@ The differential suite already compares every noise method bit for bit.
 
 `World::getNearbyEntities()`: replace the inner `foreach` over `getChunkEntities()` with
 `array_push($nearby, ...\qmath\Spatial::overlapping($this->getChunkEntities($x, $z), $bb, $entity))`. It applies the
-same `> 0.00001` overlap test and `!==` exclusion, reading the public `boundingBox` property. Keep
+same `> 0.00001` overlap test and `!==` exclusion, reading the public `boundingBox` property. It skips reading
+the excluded entity's box, which only matters if that read has side effects. Keep
 `getCollidingEntities()` and `getNearestEntity()` in PHP, because they call entity methods. The result is about
-5x faster for 500 entities.
+2.6x faster for 500 entities.
 
 Formulas:
 
@@ -316,7 +319,7 @@ Formulas:
 | `Living::lookAt()` | `[$yaw, $pitch] = Physics::lookAt($eyePos, $target)` |
 | `Projectile::move()` rotation | `Physics::motionRotation($this->motion)` |
 
-Each is bit-identical to the original formula. The gains are per call (about 11x for a motion step), so they
+Each is bit-identical to the original formula. The gains are per call (about 5x for a motion step), so they
 matter in entity-heavy worlds.
 
 ## 7. pocketmine/color
@@ -336,13 +339,13 @@ something happens. ext-qmath only computes geometry and formulas over data PHP h
 
 | Step | Change | Benefit | Risk | Validation |
 |---|---|---|---|---|
-| 1 | Swap pocketmine/math and color for the extension (section 1) | 1.1–14x on math calls (`calculateIntercept` 12x, `normalize/floor/up` 5x, vector arithmetic 2x) | Low. API and behaviour are identical | Quark test suite, PHPStan with the stub, a play session |
-| 2 | Physics formulas (section 6) | Up to 11x per call | Low | Unit tests comparing old and new formulas |
-| 3 | CollisionRegion and `Entity::move()` (section 2) | 37–58x on collision, the largest server-wide win | Medium-high: completeness of invalidation | Shadow mode, soak test, `tests/diff` |
-| 4 | Projectile raycasts (section 3) | 35–77x | Medium: depends on step 3's region | Shadow mode on projectiles |
-| 5 | Explosions (section 4) | 38–82x | Low-medium | Seeded comparisons including RNG state |
-| 6 | Noise (section 5) | 17–45x per chunk | Low: bit-identical | Chunk hash comparison per seed |
-| 7 | `getNearbyEntities()` (section 6) | About 5x | Low | Compare results in shadow mode |
+| 1 | Swap pocketmine/math and color for the extension (section 1) | 1.2–13x on math calls (`calculateIntercept` 13x, `normalize/floor/up` 5x, vector arithmetic 2x) | Low. API and behaviour are identical | Quark test suite, PHPStan with the stub, a play session |
+| 2 | Physics formulas (section 6) | About 5x per call | Low | Unit tests comparing old and new formulas |
+| 3 | CollisionRegion and `Entity::move()` (section 2) | 37–52x on collision, the largest server-wide win | Medium-high: completeness of invalidation | Shadow mode, soak test, `tests/diff` |
+| 4 | Projectile raycasts (section 3) | 70–76x | Medium: depends on step 3's region | Shadow mode on projectiles |
+| 5 | Explosions (section 4) | 21x on rays, 72–74x on exposure | Low-medium | Seeded comparisons including RNG state |
+| 6 | Noise (section 5) | About 64x per chunk | Low: bit-identical | Chunk hash comparison per seed |
+| 7 | `getNearbyEntities()` (section 6) | About 2.6x | Low | Compare results in shadow mode |
 
 Build the extension with `-Doptimize=ReleaseSafe` for servers. It keeps Zig's runtime safety checks, costs about 20%
 of native time compared to `ReleaseFast`, and turns any internal bug into a clean abort instead of memory corruption.
