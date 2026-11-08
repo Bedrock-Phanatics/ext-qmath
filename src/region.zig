@@ -39,7 +39,8 @@ pub fn fail(err: anyerror) Error {
         error.InvalidBox => rt.valueError("Bounding boxes must be finite with min <= max", .{}),
         error.InvalidInfo => rt.valueError("Invalid collision info, or boxes given for INFO_CUBE or INFO_NONE", .{}),
         error.TooManyBoxes => rt.valueError("Too many collision boxes for one cell", .{}),
-        error.RegionTooLarge => rt.throwCe(exception_ce, "The region is full, or the query spans too many sections"),
+        error.RegionFull => rt.throwCe(exception_ce, "The region holds its maximum number of sections"),
+        error.RegionTooLarge => rt.throwCe(exception_ce, "The query spans too many sections"),
         error.Frozen => rt.throwCe(rt.phpCe("spl_ce_LogicException"), "Cannot modify a frozen collision region"),
         error.ZeroLength => rt.invalidArgument(core.voxel.zero_length_message, .{}),
         error.TooManySamples => rt.valueError("Bounding box is too large to sample", .{}),
@@ -50,7 +51,10 @@ pub fn fail(err: anyerror) Error {
 pub const Backing = struct {
     region: ?collision.Region = null,
 
-    pub fn __construct(max_sections: ?i64) Error!Backing {
+    pub fn __construct(ctx: Ctx, max_sections: ?i64) Error!Backing {
+        // Constructing again would unfreeze a snapshot and reuse old version numbers.
+        const w = CollisionRegionClass.fromObject(phpz.zend.Object.from(rt.this(ctx))) catch null;
+        if (w) |o| if (o.backing()) |b| if (b.region != null) return rt.throwCe(rt.phpCe("zend_ce_error"), "CollisionRegion is already constructed");
         const n = max_sections orelse 16384;
         if (n < 1 or n > 1 << 24) return rt.valueError("maxSections must be between 1 and 16777216", .{});
         return .{ .region = collision.Region.init(rt.allocator, @intCast(n)) };

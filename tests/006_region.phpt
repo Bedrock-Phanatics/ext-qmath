@@ -200,11 +200,11 @@ ValueError: Invalid collision info 9
 ValueError: Boxes were given for a cell that is not INFO_CUSTOM or INFO_MAY_OVERFLOW
 ValueError: Box keys must be cell indexes between 0 and 4095
 ValueError: Bounding boxes must be finite with min <= max
-qmath\CollisionDataException: The region is full, or the query spans too many sections
+qmath\CollisionDataException: The query spans too many sections
 ValueError: fillBox() only accepts INFO_NONE or INFO_CUBE
 ValueError: fillBox() covers too many cells
 ValueError: maxSections must be between 1 and 16777216
-qmath\CollisionDataException: The region is full, or the query spans too many sections
+qmath\CollisionDataException: The region holds its maximum number of sections
 ReflectionException: Class qmath\CollisionRegion is an internal class marked as final that cannot be instantiated without invoking its constructor
 bool(false)
 bool(false)
