@@ -13,14 +13,46 @@ const Ctx = rt.Ctx;
 const Error = rt.Error;
 const ZObj = rt.ZObj;
 
-pub const IntFloat = phpz.Mixed(&.{ .int, .float });
-pub const IntFloatNull = phpz.Mixed(&.{ .null, .int, .float });
+/// An int|float argument coerced like a user function parameter: weak mode accepts numeric strings
+/// and bools, and null is only accepted when `nullable`.
+fn numArg(ctx: Ctx, n: u32, comptime nullable: bool) Error!?Num {
+    const zv = rt.arg(ctx, n);
+    switch (rt.ztype(zv)) {
+        rt.IS_LONG => return Num.i(zv.value.lval),
+        rt.IS_DOUBLE => return Num.f(zv.value.dval),
+        rt.IS_NULL => if (nullable) return null,
+        else => {
+            var dest: [*c]c.zval = undefined;
+            if (c.zend_parse_arg_number_slow(zv, &dest, n)) {
+                return if (rt.ztype(dest) == rt.IS_LONG) Num.i(dest.*.value.lval) else Num.f(dest.*.value.dval);
+            }
+            if (phpz.exception.hasPending()) return error.PhpException;
+        },
+    }
+    c.zend_argument_type_error(n, "must be of type " ++ (if (nullable) "int|float|null" else "int|float") ++ ", %s given", c.zend_zval_value_name(zv));
+    return error.PhpException;
+}
 
-pub fn toNum(m: IntFloat) Num {
-    return switch (m) {
-        .int => |v| Num.i(v),
-        .float => |v| Num.f(v),
-    };
+/// A float argument coerced like a user function parameter declared as `types`.
+fn floatArg(ctx: Ctx, n: u32, comptime types: []const u8) Error!f64 {
+    const zv = rt.arg(ctx, n);
+    switch (rt.ztype(zv)) {
+        rt.IS_DOUBLE => return zv.value.dval,
+        rt.IS_LONG => return @floatFromInt(zv.value.lval),
+        rt.IS_NULL => {},
+        else => {
+            var d: f64 = undefined;
+            if (c.zend_parse_arg_double_slow(zv, &d, n)) return d;
+            if (phpz.exception.hasPending()) return error.PhpException;
+        },
+    }
+    c.zend_argument_type_error(n, "must be of type " ++ types ++ ", %s given", c.zend_zval_value_name(zv));
+    return error.PhpException;
+}
+
+fn numArgs(ctx: Ctx) Error!NumVec {
+    try ctx.call.expectArgCount(3, 3);
+    return .{ (try numArg(ctx, 1, false)).?, (try numArg(ctx, 2, false)).?, (try numArg(ctx, 3, false)).? };
 }
 
 pub var v3_ce: rt.Ce = undefined;
@@ -213,12 +245,11 @@ fn arrayIterator(out: *c.zval, arr: *c.zval) Error!void {
 }
 
 pub const Vector3 = struct {
-    pub fn __construct(ctx: Ctx, x: IntFloat, y: IntFloat, z: IntFloat) Error!void {
+    pub fn __construct(ctx: Ctx) Error!void {
+        const in = try numArgs(ctx);
         const o = rt.this(ctx);
         const plain = rt.plainSlots(o.ce, v3_ce, &v3);
-        try rt.writeNum(o, v3[0], plain, toNum(x));
-        try rt.writeNum(o, v3[1], plain, toNum(y));
-        try rt.writeNum(o, v3[2], plain, toNum(z));
+        inline for (0..3) |a| try rt.writeNum(o, v3[a], plain, in[a]);
     }
 
     pub fn zero(ctx: Ctx) void {
@@ -249,8 +280,9 @@ pub const Vector3 = struct {
         return num.floorInt((try self3(ctx))[2]);
     }
 
-    pub fn add(ctx: Ctx, x: IntFloat, y: IntFloat, z: IntFloat) Error!void {
-        retV3(ctx, addTo(try self3(ctx), .{ toNum(x), toNum(y), toNum(z) }));
+    pub fn add(ctx: Ctx) Error!void {
+        const in = try numArgs(ctx);
+        retV3(ctx, addTo(try self3(ctx), in));
     }
 
     fn addTo(a: NumVec, b: NumVec) NumVec {
@@ -262,8 +294,9 @@ pub const Vector3 = struct {
         retV3(ctx, addTo(try self3(ctx), try argV3(ctx, 1)));
     }
 
-    pub fn subtract(ctx: Ctx, x: IntFloat, y: IntFloat, z: IntFloat) Error!void {
-        retV3(ctx, addTo(try self3(ctx), .{ toNum(x).neg(), toNum(y).neg(), toNum(z).neg() }));
+    pub fn subtract(ctx: Ctx) Error!void {
+        const in = try numArgs(ctx);
+        retV3(ctx, addTo(try self3(ctx), .{ in[0].neg(), in[1].neg(), in[2].neg() }));
     }
 
     pub fn subtractVector(ctx: Ctx) Error!void {
@@ -374,19 +407,20 @@ pub const Vector3 = struct {
         try ctx.call.expectArgCount(1, 2);
         const v = try self3(ctx);
         const a1 = rt.arg(ctx, 1);
-        var x: f64 = undefined;
-        var z: f64 = 0;
-        if (rt.ztype(a1) == rt.IS_OBJECT and rt.instanceOf(a1.value.obj, v3_ce)) {
-            const o = try readV3(a1.value.obj);
-            x = o[0].toFloat();
-            z = o[2].toFloat();
-        } else if (rt.ztype(a1) == rt.IS_OBJECT and rt.instanceOf(a1.value.obj, v2_ce)) {
-            const o = try readV2(a1.value.obj);
-            x = o[0];
-            z = o[1];
-        } else {
-            x = try ctx.call.expectArg(1, .{ .float = .{} }, {});
-            if (ctx.call.argCount() >= 2) z = try ctx.call.expectArg(2, .{ .float = .{} }, {});
+        const vec: ?ZObj = if (rt.ztype(a1) == rt.IS_OBJECT and (rt.instanceOf(a1.value.obj, v3_ce) or rt.instanceOf(a1.value.obj, v2_ce))) a1.value.obj else null;
+        var x: f64 = if (vec == null) try floatArg(ctx, 1, "pocketmine\\math\\Vector3|pocketmine\\math\\Vector2|float") else 0;
+        // $z is checked even when $x is a vector, like the PHP signature.
+        var z: f64 = if (ctx.call.argCount() >= 2) try floatArg(ctx, 2, "float") else 0;
+        if (vec) |o| {
+            if (rt.instanceOf(o, v3_ce)) {
+                const p = try readV3(o);
+                x = p[0].toFloat();
+                z = p[2].toFloat();
+            } else {
+                const p = try readV2(o);
+                x = p[0];
+                z = p[1];
+            }
         }
         const dx = v[0].sub(Num.f(x)).abs();
         const dz = v[2].sub(Num.f(z)).abs();
@@ -456,17 +490,14 @@ pub const Vector3 = struct {
         rt.retString(rt.ret(ctx), &.{ "Vector3(x=", x.slice(), ",y=", y.slice(), ",z=", z.slice(), ")" });
     }
 
-    pub fn withComponents(ctx: Ctx, x: IntFloatNull, y: IntFloatNull, z: IntFloatNull) Error!void {
+    pub fn withComponents(ctx: Ctx) Error!void {
+        try ctx.call.expectArgCount(3, 3);
+        const in = [3]?Num{ try numArg(ctx, 1, true), try numArg(ctx, 2, true), try numArg(ctx, 3, true) };
         const o = rt.this(ctx);
-        if (x == .null and y == .null and z == .null) return rt.retObjectCopy(rt.ret(ctx), o);
+        if (in[0] == null and in[1] == null and in[2] == null) return rt.retObjectCopy(rt.ret(ctx), o);
         const v = try readV3(o);
-        const in = [3]IntFloatNull{ x, y, z };
         var r: NumVec = undefined;
-        inline for (0..3) |a| r[a] = switch (in[a]) {
-            .null => v[a],
-            .int => |i| Num.i(i),
-            .float => |f| Num.f(f),
-        };
+        inline for (0..3) |a| r[a] = in[a] orelse v[a];
         retV3(ctx, r);
     }
 
