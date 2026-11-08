@@ -276,7 +276,7 @@ function moveResult(\qmath\MoveResult $r) : array{
 function suiteCollision(Gen $g, int $worlds, int $moves) : void{
 	for($wi = 0; $wi < $worlds; ++$wi){
 		$world = World::random($g);
-		$region = native() ? $world->toRegion() : null;
+		$region = native() ? ($wi % 2 === 0 ? $world->toRegion() : $world->toRegionSections()) : null;
 		for($i = 0; $i < $moves; ++$i){
 			$bb = entityBox($g, $g->float(-4, 4), $g->pick([1.0, 1.5, 2.0, $g->float(1, 3), 0.9999999]), $g->float(-4, 4));
 			$step = $g->pick([0.0, 0.6, 0.5625, 1.0]);
@@ -308,7 +308,7 @@ function suiteCollision(Gen $g, int $worlds, int $moves) : void{
 function suiteProjectile(Gen $g, int $worlds, int $rays) : void{
 	for($wi = 0; $wi < $worlds; ++$wi){
 		$world = World::random($g);
-		$region = native() ? $world->toRegion() : null;
+		$region = native() ? ($wi % 2 === 0 ? $world->toRegion() : $world->toRegionSections()) : null;
 		$segments = "";
 		$expected = [];
 		for($i = 0; $i < $rays; ++$i){
@@ -348,7 +348,7 @@ function hitArray(?\qmath\VoxelHit $h) : ?array{
 function suiteExposure(Gen $g, int $worlds, int $n) : void{
 	for($wi = 0; $wi < $worlds; ++$wi){
 		$world = World::random($g);
-		$region = native() ? $world->toRegion() : null;
+		$region = native() ? ($wi % 2 === 0 ? $world->toRegion() : $world->toRegionSections()) : null;
 		for($i = 0; $i < $n; ++$i){
 			$origin = $g->chance(20) ? new Vector3($g->int(-4, 4), $g->int(1, 3), $g->int(-4, 4)) : new Vector3($g->float(-5, 5), $g->float(1, 4), $g->float(-5, 5));
 			$bb = entityBox($g, $g->float(-5, 5), $g->float(1, 3), $g->float(-5, 5));

@@ -489,8 +489,8 @@ namespace qmath {
     class CollisionDataException extends \RuntimeException {}
 
     /**
-     * Dense per-cell block collision data. Cells start unknown and queries that touch an
-     * unknown cell throw instead of treating it as air.
+     * Sparse block collision data in 16x16x16 sections, aligned with chunk sections. Cells start
+     * unknown, and queries that touch an unknown cell throw instead of treating it as air.
      */
     final class CollisionRegion
     {
@@ -503,24 +503,20 @@ namespace qmath {
         /** @var int */
         public const INFO_MAY_OVERFLOW = 3;
         /** @var int */
-        public const MAX_CELLS = 4194304;
-        /** @var int */
         public const MAX_BOXES_PER_CELL = 64;
 
-        public function __construct(int $minX, int $minY, int $minZ, int $maxX, int $maxY, int $maxZ) {}
-
-        /** @return array{int, int, int, int, int, int} */
-        public function getBounds(): array {}
+        /** @param int $maxSections upper bound on stored sections, about 16 KiB each once they hold mixed cells */
+        public function __construct(int $maxSections = 16384) {}
 
         public function getVersion(): int {}
+
+        public function getSectionCount(): int {}
 
         public function isFrozen(): bool {}
 
         public function freeze(): void {}
 
         public function snapshot(): CollisionRegion {}
-
-        public function contains(int $x, int $y, int $z): bool {}
 
         public function isKnown(int $x, int $y, int $z): bool {}
 
@@ -530,14 +526,30 @@ namespace qmath {
         /** @param string $boxes six little-endian doubles per box, pack("e*") */
         public function setCellPacked(int $x, int $y, int $z, int $info, string $boxes): void {}
 
-        /** Marks every cell in the region as INFO_NONE or INFO_CUBE. */
-        public function fill(int $info): void {}
+        /**
+         * Replaces a chunk section.
+         * @param string $infos 4096 collision info bytes indexed (x << 8) | (z << 4) | y, like SubChunk
+         * @param array<int, array|string> $boxes AxisAlignedBB lists or packed boxes of custom and may-overflow cells, by the same index
+         */
+        public function setSection(int $sectionX, int $sectionY, int $sectionZ, string $infos, array $boxes = []): void {}
+
+        /** Marks every cell of an inclusive box as INFO_NONE or INFO_CUBE. */
+        public function fillBox(int $minX, int $minY, int $minZ, int $maxX, int $maxY, int $maxZ, int $info): void {}
+
+        /**
+         * Sections a query could read that are missing or contain unknown cells, so they can be filled first.
+         * @return list<int> flat section x, y, z triples
+         */
+        public function missingSections(\pocketmine\math\AxisAlignedBB $bb): array {}
 
         public function invalidateCell(int $x, int $y, int $z): void {}
 
         /** Invalidates a changed block and its six neighbours, like World's collision cache. */
         public function invalidateBlock(int $x, int $y, int $z): void {}
 
+        public function invalidateSection(int $sectionX, int $sectionY, int $sectionZ): void {}
+
+        /** Drops every section of a chunk column. */
         public function invalidateChunk(int $chunkX, int $chunkZ): void {}
 
         public function invalidateAll(): void {}
@@ -594,6 +606,9 @@ namespace qmath {
 
         /** Continuous time-of-impact test against the region's collision boxes. */
         public static function sweep(CollisionRegion $region, \pocketmine\math\AxisAlignedBB $bb, float $dx, float $dy, float $dz): ?SweepResult {}
+
+        /** The smallest box covering every query move() can make, for CollisionRegion::missingSections(). */
+        public static function queryBox(\pocketmine\math\AxisAlignedBB $bb, float $dx, float $dy, float $dz, float $stepHeight = 0.0): \pocketmine\math\AxisAlignedBB {}
 
         /** @param array<int|string, \pocketmine\math\AxisAlignedBB> $boxes */
         public static function sweepBoxes(\pocketmine\math\AxisAlignedBB $bb, float $dx, float $dy, float $dz, array $boxes): ?SweepResult {}

@@ -44,8 +44,8 @@ $small = new ResistanceGrid(0, 0, 0, 1, 1, 0);
 $small->setPacked(pack("e*", 1.0, NAN, 2.0, 3.0));
 
 // exposure: an open field sees everything, a wall hides the entity
-$r = new R(-8, -2, -8, 8, 8, 8);
-$r->fill(R::INFO_NONE);
+$r = new R();
+$r->fillBox(-8, -2, -8, 8, 8, 8, R::INFO_NONE);
 $e = new AxisAlignedBB(3.7, 0, 0.2, 4.3, 1.8, 0.8);
 var_dump(ExplosionMath::exposure($r, new Vector3(0.5, 0.5, 0.5), $e));
 for ($y = -2; $y <= 8; ++$y) for ($z = -8; $z <= 8; ++$z) $r->setCell(2, $y, $z, R::INFO_CUBE);

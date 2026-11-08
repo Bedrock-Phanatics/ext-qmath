@@ -82,12 +82,46 @@ final class World{
 		return $out;
 	}
 
+	/** One region cell at a time, cells outside the world are air like World::getBlockCollisionInfo(). */
 	public function toRegion() : \qmath\CollisionRegion{
-		$r = new \qmath\CollisionRegion($this->minX - 1, $this->minY - 1, $this->minZ - 1, $this->maxX + 1, $this->maxY + 1, $this->maxZ + 1);
-		$r->fill(\qmath\CollisionRegion::INFO_NONE);
+		$r = new \qmath\CollisionRegion();
+		$r->fillBox($this->minX - 1, $this->minY - 1, $this->minZ - 1, $this->maxX + 1, $this->maxY + 1, $this->maxZ + 1, \qmath\CollisionRegion::INFO_NONE);
 		foreach($this->cells as $key => [$info, $_]){
 			[$x, $y, $z] = array_map('intval', explode(":", $key));
 			$r->setCell($x, $y, $z, $info, $info === COLLISION_CUBE ? [] : $this->ownBoxes($x, $y, $z));
+		}
+		return $r;
+	}
+
+	/** The integration path: whole chunk sections, as Quark would export them from a SubChunk. */
+	public function toRegionSections() : \qmath\CollisionRegion{
+		$r = new \qmath\CollisionRegion();
+		for($sx = ($this->minX - 1) >> 4; $sx <= ($this->maxX + 1) >> 4; ++$sx){
+			for($sz = ($this->minZ - 1) >> 4; $sz <= ($this->maxZ + 1) >> 4; ++$sz){
+				for($sy = ($this->minY - 1) >> 4; $sy <= ($this->maxY + 1) >> 4; ++$sy){
+					$infos = str_repeat(chr(COLLISION_NONE), 4096);
+					$boxes = [];
+					for($lx = 0; $lx < 16; ++$lx){
+						for($lz = 0; $lz < 16; ++$lz){
+							for($ly = 0; $ly < 16; ++$ly){
+								$x = ($sx << 4) | $lx;
+								$y = ($sy << 4) | $ly;
+								$z = ($sz << 4) | $lz;
+								$cell = $this->cells["$x:$y:$z"] ?? null;
+								if($cell === null){
+									continue;
+								}
+								$index = ($lx << 8) | ($lz << 4) | $ly;
+								$infos[$index] = chr($cell[0]);
+								if($cell[0] === COLLISION_CUSTOM || $cell[0] === COLLISION_MAY_OVERFLOW){
+									$boxes[$index] = $this->ownBoxes($x, $y, $z);
+								}
+							}
+						}
+					}
+					$r->setSection($sx, $sy, $sz, $infos, $boxes);
+				}
+			}
 		}
 		return $r;
 	}

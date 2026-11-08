@@ -13,9 +13,9 @@ function t(callable $f) { try { var_dump($f()); } catch (Throwable $e) { echo ge
 
 /** Flat floor at y = 63 around the chunk corner at 0, 0, with a few shapes on top. */
 function world() : R {
-    $r = new R(-20, 40, -20, 20, 72, 20);
-    $r->fill(R::INFO_NONE);
-    for ($x = -20; $x <= 20; ++$x) for ($z = -20; $z <= 20; ++$z) $r->setCell($x, 63, $z, R::INFO_CUBE);
+    $r = new R();
+    $r->fillBox(-20, 40, -20, 20, 72, 20, R::INFO_NONE);
+    $r->fillBox(-20, 63, -20, 20, 63, 20, R::INFO_CUBE);
     $r->setCell(2, 64, 0, R::INFO_CUSTOM, [new AxisAlignedBB(2, 64, 0, 3, 64.5, 1)]);                    // slab
     $r->setCell(4, 64, 0, R::INFO_CUSTOM, [new AxisAlignedBB(4, 64, 0, 5, 64.5, 1), new AxisAlignedBB(4, 64.5, 0, 5, 65, 0.5)]); // stairs
     $r->setCell(6, 64, 0, R::INFO_MAY_OVERFLOW, [new AxisAlignedBB(6.375, 64, 0.375, 6.625, 65.5, 0.625)]); // fence post
@@ -54,7 +54,13 @@ show("airborne", Collision::move($r, player(0.5, 66, 0.5), 0.2, 0.3, 0.2));
 t(fn() => Collision::move($r, player(0.5, 64, 0.5), NAN, 0, 0));
 t(fn() => Collision::move($r, player(0.5, 64, 0.5), 0, 0, 0, INF));
 t(fn() => Collision::move($r, player(0.5, 64, 0.5), 0, -100, 0));
-t(fn() => Collision::move(new R(0, 0, 0, 1, 1, 1), player(0.5, 0, 0.5), 0, 0, 0));
+t(fn() => Collision::move(new R(), player(0.5, 0, 0.5), 0, 0, 0));
+
+// prefetch: the query box covers the step retry too, missingSections() lists what to load
+$q = Collision::queryBox(player(0.5, 64, 0.5), 0.4, -0.08, 0.0, 0.6);
+echo $q, "
+";
+var_dump(count(world()->missingSections($q)), count((new R())->missingSections($q)) / 3);
 $m = Collision::move($r, player(0.5, 64, 0.5), 0, 0, 0);
 t(fn() => $m->dx = 1.0);
 
@@ -81,8 +87,11 @@ diagonal       d=(3.0000 0.0000 0.2000) min=(3.2000 64.0000 0.4000) h=0 v=1 grou
 airborne       d=(0.2000 0.3000 0.2000) min=(0.4000 66.3000 0.4000) h=0 v=0 ground=0 step=0 xyz=000
 ValueError: dx must be finite
 ValueError: stepHeight must be finite
-qmath\CollisionDataException: The query needs cells outside the region
 qmath\CollisionDataException: The query needs a cell with no collision data
+qmath\CollisionDataException: The query needs a cell with no collision data
+AxisAlignedBB(0.2, 63.92, 0.2, 1.2, 66.4, 0.8)
+int(12)
+int(8)
 Error: Cannot modify readonly property qmath\MoveResult::$dx
 int(4)
 float(0.406667)

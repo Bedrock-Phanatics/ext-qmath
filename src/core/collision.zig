@@ -1,4 +1,8 @@
 //! Block collision data and the Entity::move() collision solver.
+//!
+//! The region is a sparse map of 16x16x16 sections, matching chunk sections, so it can hold collision
+//! data for a whole world and be updated incrementally. Cells without data are unknown, and queries that
+//! touch them fail instead of treating them as air.
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
@@ -28,109 +32,168 @@ pub const Info = enum(u8) {
     }
 };
 
-pub const max_cells: usize = 1 << 22;
 pub const max_boxes_per_cell: usize = 64;
-const max_total_boxes: usize = 1 << 24;
+const max_boxes_per_section: usize = std.math.maxInt(u16);
+const max_query_boxes: usize = 1 << 20;
+/// Bounds that keep section coordinates packable: |x|, |z| < 2^25 and |y| < 2^23.
+const horizontal_limit: i64 = 1 << 25;
+const vertical_limit: i64 = 1 << 23;
+/// A query may not span more sections than this.
+pub const max_query_sections: usize = 4096;
+pub const section_cells = 4096;
 
 pub const Error = error{
     OutOfMemory,
-    /// A query needed a cell outside the region.
+    /// A coordinate is outside the representable world range.
     OutOfRange,
     /// A query needed a cell whose data was never provided or was invalidated.
     UnknownCell,
     InvalidBox,
     InvalidInfo,
     TooManyBoxes,
+    /// The region holds its maximum number of sections, or a query or fill is too large.
     RegionTooLarge,
     Frozen,
 };
 
-const Cell = struct {
-    first: u32 = 0,
+const Cell = packed struct(u32) {
+    first: u16 = 0,
     count: u8 = 0,
     info: Info = .unknown,
 };
 
+const Section = struct {
+    /// Set while every cell shares this info and there are no boxes.
+    uniform: ?Info = null,
+    cells: ?*[section_cells]Cell = null,
+    boxes: std.ArrayList(Box) = .empty,
+    live: u32 = 0,
+    unknown: u16 = section_cells,
+
+    fn free(self: *Section, allocator: Allocator) void {
+        if (self.cells) |cells| allocator.destroy(cells);
+        self.boxes.deinit(allocator);
+        allocator.destroy(self);
+    }
+
+    fn cell(self: *const Section, i: u12) Cell {
+        if (self.cells) |cells| return cells[i];
+        return .{ .info = self.uniform orelse .unknown };
+    }
+
+    /// Switches a uniform section to per-cell storage.
+    fn expand(self: *Section, allocator: Allocator) Error!*[section_cells]Cell {
+        if (self.cells) |cells| return cells;
+        const cells = try allocator.create([section_cells]Cell);
+        @memset(cells, .{ .info = self.uniform orelse .unknown });
+        self.cells = cells;
+        self.uniform = null;
+        return cells;
+    }
+
+    fn compact(self: *Section) void {
+        const cells = self.cells orelse return;
+        var w: usize = 0;
+        for (cells) |*c| {
+            if (c.count == 0) continue;
+            std.mem.copyForwards(Box, self.boxes.items[w..][0..c.count], self.boxes.items[c.first..][0..c.count]);
+            c.first = @intCast(w);
+            w += c.count;
+        }
+        self.boxes.shrinkRetainingCapacity(w);
+    }
+};
+
+pub const SectionPos = struct { x: i32, y: i32, z: i32 };
+
+pub fn sectionKey(sx: i32, sy: i32, sz: i32) u64 {
+    const bx: u64 = @intCast(@as(i64, sx) + (1 << 21));
+    const bz: u64 = @intCast(@as(i64, sz) + (1 << 21));
+    const by: u64 = @intCast(@as(i64, sy) + (1 << 19));
+    return (bx << 42) | (bz << 20) | by;
+}
+
+fn keyPos(key: u64) SectionPos {
+    return .{
+        .x = @intCast(@as(i64, @intCast(key >> 42)) - (1 << 21)),
+        .z = @intCast(@as(i64, @intCast((key >> 20) & ((1 << 22) - 1))) - (1 << 21)),
+        .y = @intCast(@as(i64, @intCast(key & ((1 << 20) - 1))) - (1 << 19)),
+    };
+}
+
+pub fn inRange(x: i64, y: i64, z: i64) bool {
+    return x > -horizontal_limit and x < horizontal_limit and z > -horizontal_limit and z < horizontal_limit and y > -vertical_limit and y < vertical_limit;
+}
+
+/// Index of a cell inside its section, in the x, z, y order chunk sections use.
+pub fn localIndex(lx: u4, ly: u4, lz: u4) u12 {
+    return (@as(u12, lx) << 8) | (@as(u12, lz) << 4) | ly;
+}
+
+const Loc = struct { key: u64, local: u12 };
+
+fn locate(x: i64, y: i64, z: i64) ?Loc {
+    if (!inRange(x, y, z)) return null;
+    return .{
+        .key = sectionKey(@intCast(x >> 4), @intCast(y >> 4), @intCast(z >> 4)),
+        .local = localIndex(@truncate(@as(u64, @bitCast(x))), @truncate(@as(u64, @bitCast(y))), @truncate(@as(u64, @bitCast(z)))),
+    };
+}
+
+/// One-entry section cache for queries, which visit cells of the same section in runs.
+pub const Lookup = struct {
+    key: u64 = std.math.maxInt(u64),
+    section: ?*Section = null,
+};
+
+pub const CellBoxes = struct {
+    index: u12,
+    boxes: []const Box,
+};
+
 pub const Region = struct {
     allocator: Allocator,
-    min: [3]i64,
-    size: [3]u32,
-    cells: []Cell,
-    boxes: std.ArrayList(Box) = .empty,
-    live_boxes: usize = 0,
+    sections: std.AutoHashMapUnmanaged(u64, *Section) = .empty,
+    max_sections: u32,
     version: u64 = 0,
     frozen: bool = false,
 
-    pub fn init(allocator: Allocator, min: [3]i64, max: [3]i64) Error!Region {
-        var size: [3]u32 = undefined;
-        var total: u64 = 1;
-        for (0..3) |a| {
-            if (max[a] < min[a]) return error.RegionTooLarge;
-            const span = @as(i128, max[a]) - min[a] + 1;
-            if (span > max_cells) return error.RegionTooLarge;
-            size[a] = @intCast(span);
-            total *= size[a];
-            if (total > max_cells) return error.RegionTooLarge;
-        }
-        const cells = try allocator.alloc(Cell, @intCast(total));
-        @memset(cells, .{});
-        return .{ .allocator = allocator, .min = min, .size = size, .cells = cells };
+    pub fn init(allocator: Allocator, max_sections: u32) Region {
+        return .{ .allocator = allocator, .max_sections = max_sections };
     }
 
     pub fn deinit(self: *Region) void {
-        self.allocator.free(self.cells);
-        self.boxes.deinit(self.allocator);
+        var it = self.sections.valueIterator();
+        while (it.next()) |s| s.*.free(self.allocator);
+        self.sections.deinit(self.allocator);
         self.* = undefined;
     }
 
-    /// Compacted deep copy, unfrozen.
+    /// Deep copy, unfrozen.
     pub fn clone(self: *const Region, allocator: Allocator) Error!Region {
-        const cells = try allocator.dupe(Cell, self.cells);
-        errdefer allocator.free(cells);
-        var boxes: std.ArrayList(Box) = .empty;
-        errdefer boxes.deinit(allocator);
-        try boxes.ensureTotalCapacity(allocator, self.live_boxes);
-        for (cells) |*cell| {
-            if (cell.count == 0) continue;
-            const first: u32 = @intCast(boxes.items.len);
-            boxes.appendSliceAssumeCapacity(self.boxes.items[cell.first..][0..cell.count]);
-            cell.first = first;
+        var copy = Region.init(allocator, self.max_sections);
+        errdefer copy.deinit();
+        copy.version = self.version;
+        try copy.sections.ensureTotalCapacity(allocator, self.sections.count());
+        var it = self.sections.iterator();
+        while (it.next()) |e| {
+            const src = e.value_ptr.*;
+            const s = try allocator.create(Section);
+            s.* = .{ .uniform = src.uniform, .live = src.live, .unknown = src.unknown };
+            copy.sections.putAssumeCapacity(e.key_ptr.*, s);
+            if (src.cells) |cells| {
+                const dst = try allocator.create([section_cells]Cell);
+                dst.* = cells.*;
+                s.cells = dst;
+                try s.boxes.appendSlice(allocator, src.boxes.items);
+                s.compact();
+            }
         }
-        return .{
-            .allocator = allocator,
-            .min = self.min,
-            .size = self.size,
-            .cells = cells,
-            .boxes = boxes,
-            .live_boxes = self.live_boxes,
-            .version = self.version,
-        };
+        return copy;
     }
 
-    pub fn maxCorner(self: *const Region) [3]i64 {
-        var r: [3]i64 = undefined;
-        for (0..3) |a| r[a] = self.min[a] + self.size[a] - 1;
-        return r;
-    }
-
-    /// Cells are laid out with y varying fastest, then z, then x.
-    pub fn index(self: *const Region, x: i64, y: i64, z: i64) ?usize {
-        const p = [3]i64{ x, y, z };
-        var rel: [3]u64 = undefined;
-        for (0..3) |a| {
-            if (p[a] < self.min[a]) return null;
-            const d: u64 = @intCast(@as(i128, p[a]) - self.min[a]);
-            if (d >= self.size[a]) return null;
-            rel[a] = d;
-        }
-        return @intCast((rel[0] * self.size[2] + rel[2]) * self.size[1] + rel[1]);
-    }
-
-    pub fn cellInfo(self: *const Region, x: i64, y: i64, z: i64) Error!Info {
-        const i = self.index(x, y, z) orelse return error.OutOfRange;
-        const info = self.cells[i].info;
-        if (info == .unknown) return error.UnknownCell;
-        return info;
+    pub fn sectionCount(self: *const Region) usize {
+        return self.sections.count();
     }
 
     fn mutate(self: *Region) Error!void {
@@ -138,131 +201,293 @@ pub const Region = struct {
         self.version +%= 1;
     }
 
-    pub fn setCell(self: *Region, x: i64, y: i64, z: i64, info: Info, boxes: []const Box) Error!void {
-        const i = self.index(x, y, z) orelse return error.OutOfRange;
-        if (info == .unknown) return error.InvalidInfo;
-        if ((info == .cube or info == .none) and boxes.len != 0) return error.InvalidInfo;
-        if (boxes.len > max_boxes_per_cell) return error.TooManyBoxes;
-        for (boxes) |b| if (!b.isValid()) return error.InvalidBox;
-        if (self.frozen) return error.Frozen;
-
-        const cell = &self.cells[i];
-        if (boxes.len <= cell.count) {
-            // Reuse the existing span in place.
-            @memcpy(self.boxes.items[cell.first..][0..boxes.len], boxes);
-            self.live_boxes -= cell.count - boxes.len;
-        } else {
-            if (self.boxes.items.len + boxes.len > max_total_boxes) {
-                self.compact();
-                if (self.boxes.items.len + boxes.len > max_total_boxes) return error.TooManyBoxes;
-            }
-            const first: u32 = @intCast(self.boxes.items.len);
-            try self.boxes.appendSlice(self.allocator, boxes);
-            self.live_boxes += boxes.len - cell.count;
-            cell.first = first;
+    fn sectionFor(self: *const Region, lk: *Lookup, key: u64) ?*Section {
+        if (lk.key != key) {
+            lk.key = key;
+            lk.section = self.sections.get(key);
         }
-        cell.count = @intCast(boxes.len);
-        cell.info = info;
-        self.version +%= 1;
-        if (self.boxes.items.len > 4096 and self.boxes.items.len > self.live_boxes * 2) self.compact();
+        return lk.section;
     }
 
-    pub fn fill(self: *Region, info: Info) Error!void {
-        if (info != .none and info != .cube) return error.InvalidInfo;
-        try self.mutate();
-        @memset(self.cells, .{ .info = info });
-        self.boxes.clearRetainingCapacity();
-        self.live_boxes = 0;
+    fn cellAt(self: *const Region, lk: *Lookup, x: i64, y: i64, z: i64) Error!struct { cell: Cell, section: *Section } {
+        const loc = locate(x, y, z) orelse return error.OutOfRange;
+        const s = self.sectionFor(lk, loc.key) orelse return error.UnknownCell;
+        const cell = s.cell(loc.local);
+        if (cell.info == .unknown) return error.UnknownCell;
+        return .{ .cell = cell, .section = s };
     }
 
-    fn forget(self: *Region, i: usize) void {
-        self.live_boxes -= self.cells[i].count;
-        self.cells[i] = .{};
-    }
-
-    pub fn invalidateCell(self: *Region, x: i64, y: i64, z: i64) Error!void {
-        try self.mutate();
-        if (self.index(x, y, z)) |i| self.forget(i);
-    }
-
-    pub fn invalidateBlock(self: *Region, x: i64, y: i64, z: i64) Error!void {
-        try self.mutate();
-        if (self.index(x, y, z)) |i| self.forget(i);
-        for (geom.facing.offsets) |o| {
-            const nx = std.math.add(i64, x, o[0]) catch continue;
-            const ny = std.math.add(i64, y, o[1]) catch continue;
-            const nz = std.math.add(i64, z, o[2]) catch continue;
-            if (self.index(nx, ny, nz)) |i| self.forget(i);
-        }
-    }
-
-    /// Forgets every cell in the 16x16 column of the chunk, plus the neighbouring cells whose
-    /// overflow boxes could reach into it.
-    pub fn invalidateChunk(self: *Region, chunk_x: i64, chunk_z: i64) Error!void {
-        try self.mutate();
-        const lo_x = std.math.mul(i64, chunk_x, 16) catch return;
-        const lo_z = std.math.mul(i64, chunk_z, 16) catch return;
-        const max = self.maxCorner();
-        const x0 = @max(lo_x -| 1, self.min[0]);
-        const x1 = @min(lo_x +| 16, max[0]);
-        const z0 = @max(lo_z -| 1, self.min[2]);
-        const z1 = @min(lo_z +| 16, max[2]);
-        var x = x0;
-        while (x <= x1) : (x += 1) {
-            var z = z0;
-            while (z <= z1) : (z += 1) {
-                const start = self.index(x, self.min[1], z).?;
-                for (start..start + self.size[1]) |i| self.forget(i);
-            }
-        }
-    }
-
-    pub fn invalidateAll(self: *Region) Error!void {
-        try self.mutate();
-        @memset(self.cells, .{});
-        self.boxes.clearRetainingCapacity();
-        self.live_boxes = 0;
-    }
-
-    fn compact(self: *Region) void {
-        var w: usize = 0;
-        for (self.cells) |*cell| {
-            if (cell.count == 0) continue;
-            std.mem.copyForwards(Box, self.boxes.items[w..][0..cell.count], self.boxes.items[cell.first..][0..cell.count]);
-            cell.first = @intCast(w);
-            w += cell.count;
-        }
-        self.boxes.shrinkRetainingCapacity(w);
+    pub fn cellInfo(self: *const Region, lk: *Lookup, x: i64, y: i64, z: i64) Error!Info {
+        return (try self.cellAt(lk, x, y, z)).cell.info;
     }
 
     /// Block::getCollisionBoxes() for the cell. `scratch` holds the synthesized box of a full cube.
-    pub fn ownBoxes(self: *const Region, x: i64, y: i64, z: i64, scratch: *Box) Error![]const Box {
-        const i = self.index(x, y, z) orelse return error.OutOfRange;
-        const cell = self.cells[i];
-        return switch (cell.info) {
+    pub fn ownBoxes(self: *const Region, lk: *Lookup, x: i64, y: i64, z: i64, scratch: *Box) Error![]const Box {
+        const at = try self.cellAt(lk, x, y, z);
+        return switch (at.cell.info) {
             .unknown => error.UnknownCell,
             .none => &.{},
             .cube => blk: {
                 scratch.* = Box.unitAt(x, y, z);
                 break :blk scratch[0..1];
             },
-            else => self.boxes.items[cell.first..][0..cell.count],
+            else => at.section.boxes.items[at.cell.first..][0..at.cell.count],
         };
     }
 
+    fn getOrCreate(self: *Region, key: u64) Error!*Section {
+        const gop = try self.sections.getOrPut(self.allocator, key);
+        if (gop.found_existing) return gop.value_ptr.*;
+        if (self.sections.count() > self.max_sections) {
+            self.sections.removeByPtr(gop.key_ptr);
+            return error.RegionTooLarge;
+        }
+        const s = self.allocator.create(Section) catch |e| {
+            self.sections.removeByPtr(gop.key_ptr);
+            return e;
+        };
+        s.* = .{};
+        gop.value_ptr.* = s;
+        return s;
+    }
+
+    fn validate(info: Info, boxes: []const Box) Error!void {
+        if (info == .unknown) return error.InvalidInfo;
+        if ((info == .cube or info == .none) and boxes.len != 0) return error.InvalidInfo;
+        if (boxes.len > max_boxes_per_cell) return error.TooManyBoxes;
+        for (boxes) |b| if (!b.isValid()) return error.InvalidBox;
+    }
+
+    pub fn setCell(self: *Region, x: i64, y: i64, z: i64, info: Info, boxes: []const Box) Error!void {
+        const loc = locate(x, y, z) orelse return error.OutOfRange;
+        try validate(info, boxes);
+        if (self.frozen) return error.Frozen;
+        const s = try self.getOrCreate(loc.key);
+        if (s.cells == null and boxes.len == 0 and s.uniform == info) {
+            self.version +%= 1;
+            return;
+        }
+        const cells = try s.expand(self.allocator);
+        const cell = &cells[loc.local];
+        if (cell.info == .unknown) s.unknown -= 1;
+        if (boxes.len <= cell.count) {
+            @memcpy(s.boxes.items[cell.first..][0..boxes.len], boxes);
+            s.live -= cell.count - @as(u32, @intCast(boxes.len));
+        } else {
+            if (s.boxes.items.len + boxes.len > max_boxes_per_section) {
+                s.compact();
+                if (s.boxes.items.len + boxes.len > max_boxes_per_section) {
+                    if (cell.info == .unknown) s.unknown += 1;
+                    return error.TooManyBoxes;
+                }
+            }
+            const first: u16 = @intCast(s.boxes.items.len);
+            try s.boxes.appendSlice(self.allocator, boxes);
+            s.live += @as(u32, @intCast(boxes.len)) - cell.count;
+            cell.first = first;
+        }
+        cell.count = @intCast(boxes.len);
+        cell.info = info;
+        self.version +%= 1;
+        if (s.boxes.items.len > 256 and s.boxes.items.len > s.live * 2) s.compact();
+    }
+
+    /// Replaces a whole section. `infos` is in localIndex() order; `cell_boxes` lists the boxes of
+    /// custom and may-overflow cells.
+    pub fn setSection(self: *Region, sx: i32, sy: i32, sz: i32, infos: []const Info, cell_boxes: []const CellBoxes) Error!void {
+        if (infos.len != section_cells) return error.InvalidInfo;
+        if (!inRange(@as(i64, sx) * 16, @as(i64, sy) * 16, @as(i64, sz) * 16) or !inRange(@as(i64, sx) * 16 + 15, @as(i64, sy) * 16 + 15, @as(i64, sz) * 16 + 15)) return error.OutOfRange;
+        var total: usize = 0;
+        for (infos) |i| if (i == .unknown) return error.InvalidInfo;
+        for (cell_boxes) |cb| {
+            try validate(infos[cb.index], cb.boxes);
+            if (infos[cb.index] == .cube or infos[cb.index] == .none) return error.InvalidInfo;
+            total += cb.boxes.len;
+        }
+        if (total > max_boxes_per_section) return error.TooManyBoxes;
+        if (self.frozen) return error.Frozen;
+
+        const uniform = cell_boxes.len == 0 and std.mem.allEqual(Info, infos, infos[0]);
+        var fresh = Section{ .unknown = 0 };
+        errdefer if (fresh.cells) |c| self.allocator.destroy(c);
+        errdefer fresh.boxes.deinit(self.allocator);
+        if (uniform) {
+            fresh.uniform = infos[0];
+        } else {
+            const cells = try self.allocator.create([section_cells]Cell);
+            fresh.cells = cells;
+            for (cells, infos) |*c, i| c.* = .{ .info = i };
+            try fresh.boxes.ensureTotalCapacity(self.allocator, total);
+            for (cell_boxes) |cb| {
+                const c = &cells[cb.index];
+                if (c.count != 0) return error.InvalidInfo;
+                c.first = @intCast(fresh.boxes.items.len);
+                c.count = @intCast(cb.boxes.len);
+                fresh.boxes.appendSliceAssumeCapacity(cb.boxes);
+            }
+            fresh.live = @intCast(total);
+        }
+        const s = try self.getOrCreate(sectionKey(sx, sy, sz));
+        if (s.cells) |c| self.allocator.destroy(c);
+        s.boxes.deinit(self.allocator);
+        s.* = fresh;
+        self.version +%= 1;
+    }
+
+    /// Marks every cell of a box as `info`, which must be none or cube.
+    pub fn fillBox(self: *Region, min: [3]i64, max: [3]i64, info: Info) Error!void {
+        if (info != .none and info != .cube) return error.InvalidInfo;
+        var cells: u128 = 1;
+        for (0..3) |a| {
+            if (max[a] < min[a]) return error.InvalidBox;
+            cells *= @intCast(@as(i128, max[a]) - min[a] + 1);
+        }
+        if (cells > 1 << 26) return error.RegionTooLarge;
+        if (!inRange(min[0], min[1], min[2]) or !inRange(max[0], max[1], max[2])) return error.OutOfRange;
+        if (self.frozen) return error.Frozen;
+        var sx = min[0] >> 4;
+        while (sx <= max[0] >> 4) : (sx += 1) {
+            var sz = min[2] >> 4;
+            while (sz <= max[2] >> 4) : (sz += 1) {
+                var sy = min[1] >> 4;
+                while (sy <= max[1] >> 4) : (sy += 1) {
+                    const base = [3]i64{ sx * 16, sy * 16, sz * 16 };
+                    var lo: [3]i64 = undefined;
+                    var hi: [3]i64 = undefined;
+                    var whole = true;
+                    for (0..3) |a| {
+                        lo[a] = @max(min[a], base[a]);
+                        hi[a] = @min(max[a], base[a] + 15);
+                        if (lo[a] != base[a] or hi[a] != base[a] + 15) whole = false;
+                    }
+                    const s = try self.getOrCreate(sectionKey(@intCast(sx), @intCast(sy), @intCast(sz)));
+                    if (whole) {
+                        if (s.cells) |c| self.allocator.destroy(c);
+                        s.boxes.deinit(self.allocator);
+                        s.* = .{ .uniform = info, .unknown = 0 };
+                        continue;
+                    }
+                    if (s.cells == null and s.uniform == info) continue;
+                    const c = try s.expand(self.allocator);
+                    var x = lo[0];
+                    while (x <= hi[0]) : (x += 1) {
+                        var z = lo[2];
+                        while (z <= hi[2]) : (z += 1) {
+                            var y = lo[1];
+                            while (y <= hi[1]) : (y += 1) {
+                                const cell = &c[locate(x, y, z).?.local];
+                                if (cell.info == .unknown) s.unknown -= 1;
+                                s.live -= cell.count;
+                                cell.* = .{ .info = info };
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        self.version +%= 1;
+    }
+
+    fn forget(self: *Region, x: i64, y: i64, z: i64) Error!void {
+        const loc = locate(x, y, z) orelse return;
+        const s = self.sections.get(loc.key) orelse return;
+        if (s.cells == null and s.uniform == null) return;
+        const cells = try s.expand(self.allocator);
+        const c = &cells[loc.local];
+        if (c.info == .unknown) return;
+        s.live -= c.count;
+        c.* = .{};
+        s.unknown += 1;
+    }
+
+    pub fn invalidateCell(self: *Region, x: i64, y: i64, z: i64) Error!void {
+        try self.mutate();
+        try self.forget(x, y, z);
+    }
+
+    /// The block and its six neighbours, like World's collision cache invalidation.
+    pub fn invalidateBlock(self: *Region, x: i64, y: i64, z: i64) Error!void {
+        try self.mutate();
+        try self.forget(x, y, z);
+        for (geom.facing.offsets) |o| {
+            const nx = std.math.add(i64, x, o[0]) catch continue;
+            const ny = std.math.add(i64, y, o[1]) catch continue;
+            const nz = std.math.add(i64, z, o[2]) catch continue;
+            try self.forget(nx, ny, nz);
+        }
+    }
+
+    pub fn invalidateSection(self: *Region, sx: i32, sy: i32, sz: i32) Error!void {
+        try self.mutate();
+        if (self.sections.fetchRemove(sectionKey(sx, sy, sz))) |kv| kv.value.free(self.allocator);
+    }
+
+    /// Drops every section of a chunk column, like World dropping its collision cache on unload.
+    pub fn invalidateChunk(self: *Region, chunk_x: i32, chunk_z: i32) Error!void {
+        try self.mutate();
+        var doomed: std.ArrayList(u64) = .empty;
+        defer doomed.deinit(self.allocator);
+        var it = self.sections.keyIterator();
+        while (it.next()) |k| {
+            const p = keyPos(k.*);
+            if (p.x == chunk_x and p.z == chunk_z) try doomed.append(self.allocator, k.*);
+        }
+        for (doomed.items) |k| {
+            if (self.sections.fetchRemove(k)) |kv| kv.value.free(self.allocator);
+        }
+    }
+
+    pub fn invalidateAll(self: *Region) Error!void {
+        try self.mutate();
+        var it = self.sections.valueIterator();
+        while (it.next()) |s| s.*.free(self.allocator);
+        self.sections.clearRetainingCapacity();
+    }
+
+    fn cellRange(query: Box) Error![2][3]i64 {
+        if (!query.isValid()) return error.InvalidBox;
+        var r: [2][3]i64 = undefined;
+        inline for (0..3) |a| {
+            r[0][a] = num.dvalToLval(@floor(query.min[a]));
+            r[1][a] = num.dvalToLval(@floor(query.max[a]));
+        }
+        // Neighbours of the corner cells must also be addressable for overflow boxes.
+        if (!inRange(r[0][0] -| 1, r[0][1] -| 1, r[0][2] -| 1) or !inRange(r[1][0] +| 1, r[1][1] +| 1, r[1][2] +| 1)) return error.OutOfRange;
+        var sections: u64 = 1;
+        inline for (0..3) |a| sections *= @intCast(((r[1][a] + 1) >> 4) - ((r[0][a] - 1) >> 4) + 1);
+        if (sections > max_query_sections) return error.RegionTooLarge;
+        return r;
+    }
+
+    /// Sections a query could read that are missing or have unknown cells, as flat x, y, z triples.
+    pub fn missingSections(self: *const Region, query: Box, out: *std.ArrayList(i64), allocator: Allocator) Error!void {
+        const r = try cellRange(query);
+        var sx = (r[0][0] - 1) >> 4;
+        while (sx <= (r[1][0] + 1) >> 4) : (sx += 1) {
+            var sz = (r[0][2] - 1) >> 4;
+            while (sz <= (r[1][2] + 1) >> 4) : (sz += 1) {
+                var sy = (r[0][1] - 1) >> 4;
+                while (sy <= (r[1][1] + 1) >> 4) : (sy += 1) {
+                    const s = self.sections.get(sectionKey(@intCast(sx), @intCast(sy), @intCast(sz)));
+                    if (s == null or s.?.unknown > 0) try out.appendSlice(allocator, &.{ sx, sy, sz });
+                }
+            }
+        }
+    }
+
     /// World::getBlockCollisionBoxesForCell(): the cell's boxes plus overflow from neighbouring cells.
-    fn cellCollisionBoxes(self: *const Region, x: i64, y: i64, z: i64, sink: anytype) !void {
+    fn cellCollisionBoxes(self: *const Region, lk: *Lookup, nk: *Lookup, x: i64, y: i64, z: i64, sink: anytype) !void {
         var scratch: Box = undefined;
-        const info = try self.cellInfo(x, y, z);
-        for (try self.ownBoxes(x, y, z, &scratch)) |b| try sink.add(b);
+        const info = try self.cellInfo(lk, x, y, z);
+        for (try self.ownBoxes(lk, x, y, z, &scratch)) |b| try sink.add(b);
         if (info == .cube) return;
         const cell_bb = Box.unitAt(x, y, z);
         for (geom.facing.offsets) |o| {
-            const nx = std.math.add(i64, x, o[0]) catch return error.OutOfRange;
-            const ny = std.math.add(i64, y, o[1]) catch return error.OutOfRange;
-            const nz = std.math.add(i64, z, o[2]) catch return error.OutOfRange;
-            if (try self.cellInfo(nx, ny, nz) != .may_overflow) continue;
-            for (try self.ownBoxes(nx, ny, nz, &scratch)) |b| {
+            const nx = x + o[0];
+            const ny = y + o[1];
+            const nz = z + o[2];
+            if (try self.cellInfo(nk, nx, ny, nz) != .may_overflow) continue;
+            for (try self.ownBoxes(nk, nx, ny, nz, &scratch)) |b| {
                 if (b.intersects(cell_bb, geom.default_epsilon)) try sink.add(b);
             }
         }
@@ -270,19 +495,17 @@ pub const Region = struct {
 
     /// World::getBlockCollisionBoxes(): same boxes in the same order, duplicates included.
     pub fn collisionBoxes(self: *const Region, query: Box, sink: anytype) !void {
-        if (!query.isValid()) return error.InvalidBox;
-        const lo = [3]i64{ num.dvalToLval(@floor(query.min[0])), num.dvalToLval(@floor(query.min[1])), num.dvalToLval(@floor(query.min[2])) };
-        const hi = [3]i64{ num.dvalToLval(@floor(query.max[0])), num.dvalToLval(@floor(query.max[1])), num.dvalToLval(@floor(query.max[2])) };
-        // Reject ranges that leave the region before iterating, which also bounds the loop.
-        if (self.index(lo[0], lo[1], lo[2]) == null or self.index(hi[0], hi[1], hi[2]) == null) return error.OutOfRange;
+        const r = try cellRange(query);
+        var lk = Lookup{};
+        var nk = Lookup{};
         var filter = FilterSink(@TypeOf(sink)){ .inner = sink, .query = query };
-        var z = lo[2];
-        while (z <= hi[2]) : (z += 1) {
-            var x = lo[0];
-            while (x <= hi[0]) : (x += 1) {
-                var y = lo[1];
-                while (y <= hi[1]) : (y += 1) {
-                    try self.cellCollisionBoxes(x, y, z, &filter);
+        var z = r[0][2];
+        while (z <= r[1][2]) : (z += 1) {
+            var x = r[0][0];
+            while (x <= r[1][0]) : (x += 1) {
+                var y = r[0][1];
+                while (y <= r[1][1]) : (y += 1) {
+                    try self.cellCollisionBoxes(&lk, &nk, x, y, z, &filter);
                 }
             }
         }
@@ -332,7 +555,7 @@ pub const ListSink = struct {
     list: *std.ArrayList(Box),
     allocator: Allocator,
     pub fn add(self: *ListSink, b: Box) Error!void {
-        if (self.list.items.len >= max_total_boxes) return error.TooManyBoxes;
+        if (self.list.items.len >= max_query_boxes) return error.TooManyBoxes;
         try self.list.append(self.allocator, b);
     }
 };
@@ -341,6 +564,13 @@ pub fn collectBoxes(region: *const Region, allocator: Allocator, query: Box, lis
     list.clearRetainingCapacity();
     var sink = ListSink{ .list = list, .allocator = allocator };
     try region.collisionBoxes(query, &sink);
+}
+
+/// The smallest box covering every query move() may make, for prefetching sections.
+pub fn queryBox(bb: Box, wanted: Vec, step_height: f64) Box {
+    var q = bb.addCoord(wanted);
+    if (step_height > 0) q = q.union_(bb.addCoord(.{ wanted[0], step_height, wanted[2] }));
+    return q;
 }
 
 pub const MoveResult = struct {
@@ -457,15 +687,10 @@ pub fn sweep(region: *const Region, allocator: Allocator, bb: Box, d: Vec) Error
 const testing = std.testing;
 
 fn flatGround(allocator: Allocator) !Region {
-    // x, z in [-4, 4], y in [-3, 9]; a floor of full blocks at y = 0.
-    var r = try Region.init(allocator, .{ -4, -3, -4 }, .{ 4, 9, 4 });
+    var r = Region.init(allocator, 1024);
     errdefer r.deinit();
-    try r.fill(.none);
-    var x: i64 = -4;
-    while (x <= 4) : (x += 1) {
-        var z: i64 = -4;
-        while (z <= 4) : (z += 1) try r.setCell(x, 0, z, .cube, &.{});
-    }
+    try r.fillBox(.{ -20, -20, -20 }, .{ 20, 20, 20 }, .none);
+    try r.fillBox(.{ -20, 0, -20 }, .{ 20, 0, 20 }, .cube);
     return r;
 }
 
@@ -506,13 +731,34 @@ test "step height climbs a slab but not a full block" {
 }
 
 test "unknown cells are errors, not air" {
-    var r = try Region.init(testing.allocator, .{ 0, 0, 0 }, .{ 3, 3, 3 });
+    var r = Region.init(testing.allocator, 64);
     defer r.deinit();
     try testing.expectError(error.UnknownCell, move(&r, testing.allocator, player(1.5, 1, 1.5), .{ 0, -0.5, 0 }, 0, false));
-    try r.fill(.none);
+    try r.fillBox(.{ -16, -16, -16 }, .{ 15, 15, 15 }, .none);
     try r.invalidateBlock(1, 0, 1);
     try testing.expectError(error.UnknownCell, move(&r, testing.allocator, player(1.5, 1, 1.5), .{ 0, -0.5, 0 }, 0, false));
-    try testing.expectError(error.OutOfRange, move(&r, testing.allocator, player(1.5, 1, 1.5), .{ 0, -5, 0 }, 0, false));
+    try testing.expectError(error.UnknownCell, move(&r, testing.allocator, player(1.5, 1, 1.5), .{ 0, -30, 0 }, 0, false));
+}
+
+test "missing sections cover the query and its neighbours" {
+    var r = Region.init(testing.allocator, 64);
+    defer r.deinit();
+    var out: std.ArrayList(i64) = .empty;
+    defer out.deinit(testing.allocator);
+    try r.missingSections(Box.init(1, 1, 1, 2, 2, 2), &out, testing.allocator);
+    try testing.expectEqual(@as(usize, 3), out.items.len);
+    out.clearRetainingCapacity();
+    // cell 0 needs its neighbour at -1, which lives in the next section down on every axis
+    try r.missingSections(Box.init(0.5, 0.5, 0.5, 2, 2, 2), &out, testing.allocator);
+    try testing.expectEqual(@as(usize, 8 * 3), out.items.len);
+    try r.fillBox(.{ -16, -16, -16 }, .{ 15, 15, 15 }, .none);
+    out.clearRetainingCapacity();
+    try r.missingSections(Box.init(1, 1, 1, 2, 2, 2), &out, testing.allocator);
+    try testing.expectEqual(@as(usize, 0), out.items.len);
+    try r.invalidateCell(0, 0, 0);
+    out.clearRetainingCapacity();
+    try r.missingSections(Box.init(1, 1, 1, 2, 2, 2), &out, testing.allocator);
+    try testing.expectEqualSlices(i64, &.{ 0, 0, 0 }, out.items);
 }
 
 test "fence overflow boxes come from neighbouring cells" {
@@ -525,34 +771,56 @@ test "fence overflow boxes come from neighbouring cells" {
     try testing.expectEqual(@as(usize, 1), list.items.len);
 }
 
-test "region bounds and memory limits" {
-    try testing.expectError(error.RegionTooLarge, Region.init(testing.allocator, .{ 0, 0, 0 }, .{ 4096, 4096, 4096 }));
-    try testing.expectError(error.RegionTooLarge, Region.init(testing.allocator, .{ 5, 0, 0 }, .{ 0, 0, 0 }));
-    try testing.expectError(error.RegionTooLarge, Region.init(testing.allocator, .{ std.math.minInt(i64), 0, 0 }, .{ std.math.maxInt(i64), 0, 0 }));
-    var r = try Region.init(testing.allocator, .{ 0, 0, 0 }, .{ 1, 1, 1 });
+test "sections and coordinates are bounded" {
+    var r = Region.init(testing.allocator, 2);
     defer r.deinit();
-    try testing.expectError(error.OutOfRange, r.setCell(2, 0, 0, .none, &.{}));
+    try r.setCell(0, 0, 0, .none, &.{});
+    try r.setCell(16, 0, 0, .none, &.{});
+    try testing.expectError(error.RegionTooLarge, r.setCell(32, 0, 0, .none, &.{}));
+    try testing.expectEqual(@as(usize, 2), r.sectionCount());
+    try testing.expectError(error.OutOfRange, r.setCell(1 << 40, 0, 0, .none, &.{}));
     try testing.expectError(error.InvalidBox, r.setCell(0, 0, 0, .custom, &.{Box.init(1, 0, 0, 0, 1, 1)}));
     try testing.expectError(error.InvalidBox, r.setCell(0, 0, 0, .custom, &.{Box.init(std.math.nan(f64), 0, 0, 1, 1, 1)}));
+    try testing.expectError(error.RegionTooLarge, r.fillBox(.{ 0, 0, 0 }, .{ 10000, 10000, 10000 }, .none));
     r.frozen = true;
     try testing.expectError(error.Frozen, r.setCell(0, 0, 0, .none, &.{}));
 }
 
+test "section keys round trip" {
+    for ([_]SectionPos{ .{ .x = 0, .y = 0, .z = 0 }, .{ .x = -1, .y = -4, .z = 1875000 }, .{ .x = -2097151, .y = 524287, .z = -2097151 } }) |p| {
+        try testing.expectEqual(p, keyPos(sectionKey(p.x, p.y, p.z)));
+    }
+}
+
 test "repeated cell updates do not grow storage without bound" {
-    var r = try Region.init(testing.allocator, .{ 0, 0, 0 }, .{ 3, 3, 3 });
+    var r = Region.init(testing.allocator, 4);
     defer r.deinit();
     const a = [_]Box{ Box.init(0, 0, 0, 1, 0.5, 1), Box.init(0, 0.5, 0, 0.5, 1, 0.5) };
     for (0..20000) |i| {
         const n: usize = if (i % 2 == 0) 1 else 2;
         try r.setCell(@intCast(i % 4), 0, 0, .custom, a[0..n]);
     }
-    try testing.expect(r.boxes.items.len <= 8192);
+    try testing.expect(r.sections.get(sectionKey(0, 0, 0)).?.boxes.items.len <= 1024);
+}
+
+test "setSection builds uniform and detailed sections" {
+    var r = Region.init(testing.allocator, 8);
+    defer r.deinit();
+    var infos: [section_cells]Info = @splat(.none);
+    try r.setSection(0, 0, 0, &infos, &.{});
+    try testing.expect(r.sections.get(sectionKey(0, 0, 0)).?.cells == null);
+    infos[localIndex(1, 2, 3)] = .custom;
+    try r.setSection(0, 0, 0, &infos, &.{.{ .index = localIndex(1, 2, 3), .boxes = &.{Box.init(1, 2, 3, 2, 2.5, 4)} }});
+    var lk = Lookup{};
+    var scratch: Box = undefined;
+    try testing.expectEqual(@as(usize, 1), (try r.ownBoxes(&lk, 1, 2, 3, &scratch)).len);
+    try testing.expectError(error.InvalidInfo, r.setSection(0, 0, 0, &infos, &.{.{ .index = 0, .boxes = &.{Box.init(0, 0, 0, 1, 1, 1)} }}));
 }
 
 test "sweep catches thin walls at high speed" {
-    var r = try Region.init(testing.allocator, .{ -1, -1, -1 }, .{ 40, 3, 3 });
+    var r = Region.init(testing.allocator, 64);
     defer r.deinit();
-    try r.fill(.none);
+    try r.fillBox(.{ -16, -16, -16 }, .{ 47, 15, 15 }, .none);
     try r.setCell(30, 0, 0, .custom, &.{Box.init(30, 0, 0, 30.05, 1, 1)});
     const hit = (try sweep(&r, testing.allocator, Box.init(0.2, 0.2, 0.2, 0.8, 0.8, 0.8), .{ 38, 0, 0 })).?;
     try testing.expectEqual(geom.facing.west, hit.face);

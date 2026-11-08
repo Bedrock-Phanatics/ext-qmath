@@ -1,5 +1,5 @@
 /* This is a generated file, edit the .stub.php file instead.
- * Stub hash: f0cc419b43ebe18079019d59775f2c1425f95135 */
+ * Stub hash: 9d1d061f8636ddb4da8493debf8008fb34def0be */
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_class_pocketmine_math_Axis___construct, 0, 0, 0)
 ZEND_END_ARG_INFO()
@@ -608,18 +608,13 @@ ZEND_BEGIN_ARG_WITH_RETURN_OBJ_INFO_EX(arginfo_class_pocketmine_color_Color_from
 	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(0, a, IS_LONG, 0, "0xff")
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_class_qmath_CollisionRegion___construct, 0, 0, 6)
-	ZEND_ARG_TYPE_INFO(0, minX, IS_LONG, 0)
-	ZEND_ARG_TYPE_INFO(0, minY, IS_LONG, 0)
-	ZEND_ARG_TYPE_INFO(0, minZ, IS_LONG, 0)
-	ZEND_ARG_TYPE_INFO(0, maxX, IS_LONG, 0)
-	ZEND_ARG_TYPE_INFO(0, maxY, IS_LONG, 0)
-	ZEND_ARG_TYPE_INFO(0, maxZ, IS_LONG, 0)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_class_qmath_CollisionRegion___construct, 0, 0, 0)
+	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(0, maxSections, IS_LONG, 0, "16384")
 ZEND_END_ARG_INFO()
 
-#define arginfo_class_qmath_CollisionRegion_getBounds arginfo_class_pocketmine_color_Color_toHSV
-
 #define arginfo_class_qmath_CollisionRegion_getVersion arginfo_class_pocketmine_math_Vector2_getFloorX
+
+#define arginfo_class_qmath_CollisionRegion_getSectionCount arginfo_class_pocketmine_math_Vector2_getFloorX
 
 #define arginfo_class_qmath_CollisionRegion_isFrozen arginfo_class_pocketmine_math_Vector3_isFinite
 
@@ -629,13 +624,11 @@ ZEND_END_ARG_INFO()
 ZEND_BEGIN_ARG_WITH_RETURN_OBJ_INFO_EX(arginfo_class_qmath_CollisionRegion_snapshot, 0, 0, qmath\\CollisionRegion, 0)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_qmath_CollisionRegion_contains, 0, 3, _IS_BOOL, 0)
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_qmath_CollisionRegion_isKnown, 0, 3, _IS_BOOL, 0)
 	ZEND_ARG_TYPE_INFO(0, x, IS_LONG, 0)
 	ZEND_ARG_TYPE_INFO(0, y, IS_LONG, 0)
 	ZEND_ARG_TYPE_INFO(0, z, IS_LONG, 0)
 ZEND_END_ARG_INFO()
-
-#define arginfo_class_qmath_CollisionRegion_isKnown arginfo_class_qmath_CollisionRegion_contains
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_qmath_CollisionRegion_setCell, 0, 4, IS_VOID, 0)
 	ZEND_ARG_TYPE_INFO(0, x, IS_LONG, 0)
@@ -653,8 +646,26 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_qmath_CollisionRegion_setC
 	ZEND_ARG_TYPE_INFO(0, boxes, IS_STRING, 0)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_qmath_CollisionRegion_fill, 0, 1, IS_VOID, 0)
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_qmath_CollisionRegion_setSection, 0, 4, IS_VOID, 0)
+	ZEND_ARG_TYPE_INFO(0, sectionX, IS_LONG, 0)
+	ZEND_ARG_TYPE_INFO(0, sectionY, IS_LONG, 0)
+	ZEND_ARG_TYPE_INFO(0, sectionZ, IS_LONG, 0)
+	ZEND_ARG_TYPE_INFO(0, infos, IS_STRING, 0)
+	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(0, boxes, IS_ARRAY, 0, "[]")
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_qmath_CollisionRegion_fillBox, 0, 7, IS_VOID, 0)
+	ZEND_ARG_TYPE_INFO(0, minX, IS_LONG, 0)
+	ZEND_ARG_TYPE_INFO(0, minY, IS_LONG, 0)
+	ZEND_ARG_TYPE_INFO(0, minZ, IS_LONG, 0)
+	ZEND_ARG_TYPE_INFO(0, maxX, IS_LONG, 0)
+	ZEND_ARG_TYPE_INFO(0, maxY, IS_LONG, 0)
+	ZEND_ARG_TYPE_INFO(0, maxZ, IS_LONG, 0)
 	ZEND_ARG_TYPE_INFO(0, info, IS_LONG, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_qmath_CollisionRegion_missingSections, 0, 1, IS_ARRAY, 0)
+	ZEND_ARG_OBJ_INFO(0, bb, pocketmine\\math\\AxisAlignedBB, 0)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_qmath_CollisionRegion_invalidateCell, 0, 3, IS_VOID, 0)
@@ -664,6 +675,12 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_qmath_CollisionRegion_inva
 ZEND_END_ARG_INFO()
 
 #define arginfo_class_qmath_CollisionRegion_invalidateBlock arginfo_class_qmath_CollisionRegion_invalidateCell
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_qmath_CollisionRegion_invalidateSection, 0, 3, IS_VOID, 0)
+	ZEND_ARG_TYPE_INFO(0, sectionX, IS_LONG, 0)
+	ZEND_ARG_TYPE_INFO(0, sectionY, IS_LONG, 0)
+	ZEND_ARG_TYPE_INFO(0, sectionZ, IS_LONG, 0)
+ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_qmath_CollisionRegion_invalidateChunk, 0, 2, IS_VOID, 0)
 	ZEND_ARG_TYPE_INFO(0, chunkX, IS_LONG, 0)
@@ -676,9 +693,7 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_qmath_CollisionRegion_isCo
 	ZEND_ARG_OBJ_INFO(0, bb, pocketmine\\math\\AxisAlignedBB, 0)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_qmath_CollisionRegion_getCollisionBoxes, 0, 1, IS_ARRAY, 0)
-	ZEND_ARG_OBJ_INFO(0, bb, pocketmine\\math\\AxisAlignedBB, 0)
-ZEND_END_ARG_INFO()
+#define arginfo_class_qmath_CollisionRegion_getCollisionBoxes arginfo_class_qmath_CollisionRegion_missingSections
 
 #define arginfo_class_qmath_CollisionRegion_collides arginfo_class_qmath_CollisionRegion_isComplete
 
@@ -716,6 +731,14 @@ ZEND_BEGIN_ARG_WITH_RETURN_OBJ_INFO_EX(arginfo_class_qmath_Collision_sweep, 0, 5
 	ZEND_ARG_TYPE_INFO(0, dx, IS_DOUBLE, 0)
 	ZEND_ARG_TYPE_INFO(0, dy, IS_DOUBLE, 0)
 	ZEND_ARG_TYPE_INFO(0, dz, IS_DOUBLE, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_OBJ_INFO_EX(arginfo_class_qmath_Collision_queryBox, 0, 4, pocketmine\\math\\AxisAlignedBB, 0)
+	ZEND_ARG_OBJ_INFO(0, bb, pocketmine\\math\\AxisAlignedBB, 0)
+	ZEND_ARG_TYPE_INFO(0, dx, IS_DOUBLE, 0)
+	ZEND_ARG_TYPE_INFO(0, dy, IS_DOUBLE, 0)
+	ZEND_ARG_TYPE_INFO(0, dz, IS_DOUBLE, 0)
+	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(0, stepHeight, IS_DOUBLE, 0, "0.0")
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_WITH_RETURN_OBJ_INFO_EX(arginfo_class_qmath_Collision_sweepBoxes, 0, 5, qmath\\SweepResult, 1)
@@ -780,7 +803,14 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_qmath_Raycast_batchBlocks,
 	ZEND_ARG_TYPE_INFO(0, segments, IS_STRING, 0)
 ZEND_END_ARG_INFO()
 
-#define arginfo_class_qmath_ResistanceGrid___construct arginfo_class_qmath_CollisionRegion___construct
+ZEND_BEGIN_ARG_INFO_EX(arginfo_class_qmath_ResistanceGrid___construct, 0, 0, 6)
+	ZEND_ARG_TYPE_INFO(0, minX, IS_LONG, 0)
+	ZEND_ARG_TYPE_INFO(0, minY, IS_LONG, 0)
+	ZEND_ARG_TYPE_INFO(0, minZ, IS_LONG, 0)
+	ZEND_ARG_TYPE_INFO(0, maxX, IS_LONG, 0)
+	ZEND_ARG_TYPE_INFO(0, maxY, IS_LONG, 0)
+	ZEND_ARG_TYPE_INFO(0, maxZ, IS_LONG, 0)
+ZEND_END_ARG_INFO()
 
 #define arginfo_class_qmath_ResistanceGrid_getBounds arginfo_class_pocketmine_color_Color_toHSV
 
@@ -1160,18 +1190,20 @@ ZEND_METHOD(pocketmine_color_Color, fromHSV);
 ZEND_METHOD(pocketmine_color_Color, toHSL);
 ZEND_METHOD(pocketmine_color_Color, fromHSL);
 ZEND_METHOD(qmath_CollisionRegion, __construct);
-ZEND_METHOD(qmath_CollisionRegion, getBounds);
 ZEND_METHOD(qmath_CollisionRegion, getVersion);
+ZEND_METHOD(qmath_CollisionRegion, getSectionCount);
 ZEND_METHOD(qmath_CollisionRegion, isFrozen);
 ZEND_METHOD(qmath_CollisionRegion, freeze);
 ZEND_METHOD(qmath_CollisionRegion, snapshot);
-ZEND_METHOD(qmath_CollisionRegion, contains);
 ZEND_METHOD(qmath_CollisionRegion, isKnown);
 ZEND_METHOD(qmath_CollisionRegion, setCell);
 ZEND_METHOD(qmath_CollisionRegion, setCellPacked);
-ZEND_METHOD(qmath_CollisionRegion, fill);
+ZEND_METHOD(qmath_CollisionRegion, setSection);
+ZEND_METHOD(qmath_CollisionRegion, fillBox);
+ZEND_METHOD(qmath_CollisionRegion, missingSections);
 ZEND_METHOD(qmath_CollisionRegion, invalidateCell);
 ZEND_METHOD(qmath_CollisionRegion, invalidateBlock);
+ZEND_METHOD(qmath_CollisionRegion, invalidateSection);
 ZEND_METHOD(qmath_CollisionRegion, invalidateChunk);
 ZEND_METHOD(qmath_CollisionRegion, invalidateAll);
 ZEND_METHOD(qmath_CollisionRegion, isComplete);
@@ -1184,6 +1216,7 @@ ZEND_METHOD(qmath_SweepResult, __construct);
 ZEND_METHOD(qmath_Collision, __construct);
 ZEND_METHOD(qmath_Collision, move);
 ZEND_METHOD(qmath_Collision, sweep);
+ZEND_METHOD(qmath_Collision, queryBox);
 ZEND_METHOD(qmath_Collision, sweepBoxes);
 ZEND_METHOD(qmath_VoxelHit, __construct);
 ZEND_METHOD(qmath_VoxelRayIterator, __construct);
@@ -1461,18 +1494,20 @@ static const zend_function_entry class_pocketmine_color_Color_methods[] = {
 
 static const zend_function_entry class_qmath_CollisionRegion_methods[] = {
 	ZEND_ME(qmath_CollisionRegion, __construct, arginfo_class_qmath_CollisionRegion___construct, ZEND_ACC_PUBLIC)
-	ZEND_ME(qmath_CollisionRegion, getBounds, arginfo_class_qmath_CollisionRegion_getBounds, ZEND_ACC_PUBLIC)
 	ZEND_ME(qmath_CollisionRegion, getVersion, arginfo_class_qmath_CollisionRegion_getVersion, ZEND_ACC_PUBLIC)
+	ZEND_ME(qmath_CollisionRegion, getSectionCount, arginfo_class_qmath_CollisionRegion_getSectionCount, ZEND_ACC_PUBLIC)
 	ZEND_ME(qmath_CollisionRegion, isFrozen, arginfo_class_qmath_CollisionRegion_isFrozen, ZEND_ACC_PUBLIC)
 	ZEND_ME(qmath_CollisionRegion, freeze, arginfo_class_qmath_CollisionRegion_freeze, ZEND_ACC_PUBLIC)
 	ZEND_ME(qmath_CollisionRegion, snapshot, arginfo_class_qmath_CollisionRegion_snapshot, ZEND_ACC_PUBLIC)
-	ZEND_ME(qmath_CollisionRegion, contains, arginfo_class_qmath_CollisionRegion_contains, ZEND_ACC_PUBLIC)
 	ZEND_ME(qmath_CollisionRegion, isKnown, arginfo_class_qmath_CollisionRegion_isKnown, ZEND_ACC_PUBLIC)
 	ZEND_ME(qmath_CollisionRegion, setCell, arginfo_class_qmath_CollisionRegion_setCell, ZEND_ACC_PUBLIC)
 	ZEND_ME(qmath_CollisionRegion, setCellPacked, arginfo_class_qmath_CollisionRegion_setCellPacked, ZEND_ACC_PUBLIC)
-	ZEND_ME(qmath_CollisionRegion, fill, arginfo_class_qmath_CollisionRegion_fill, ZEND_ACC_PUBLIC)
+	ZEND_ME(qmath_CollisionRegion, setSection, arginfo_class_qmath_CollisionRegion_setSection, ZEND_ACC_PUBLIC)
+	ZEND_ME(qmath_CollisionRegion, fillBox, arginfo_class_qmath_CollisionRegion_fillBox, ZEND_ACC_PUBLIC)
+	ZEND_ME(qmath_CollisionRegion, missingSections, arginfo_class_qmath_CollisionRegion_missingSections, ZEND_ACC_PUBLIC)
 	ZEND_ME(qmath_CollisionRegion, invalidateCell, arginfo_class_qmath_CollisionRegion_invalidateCell, ZEND_ACC_PUBLIC)
 	ZEND_ME(qmath_CollisionRegion, invalidateBlock, arginfo_class_qmath_CollisionRegion_invalidateBlock, ZEND_ACC_PUBLIC)
+	ZEND_ME(qmath_CollisionRegion, invalidateSection, arginfo_class_qmath_CollisionRegion_invalidateSection, ZEND_ACC_PUBLIC)
 	ZEND_ME(qmath_CollisionRegion, invalidateChunk, arginfo_class_qmath_CollisionRegion_invalidateChunk, ZEND_ACC_PUBLIC)
 	ZEND_ME(qmath_CollisionRegion, invalidateAll, arginfo_class_qmath_CollisionRegion_invalidateAll, ZEND_ACC_PUBLIC)
 	ZEND_ME(qmath_CollisionRegion, isComplete, arginfo_class_qmath_CollisionRegion_isComplete, ZEND_ACC_PUBLIC)
@@ -1497,6 +1532,7 @@ static const zend_function_entry class_qmath_Collision_methods[] = {
 	ZEND_ME(qmath_Collision, __construct, arginfo_class_qmath_Collision___construct, ZEND_ACC_PRIVATE)
 	ZEND_ME(qmath_Collision, move, arginfo_class_qmath_Collision_move, ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
 	ZEND_ME(qmath_Collision, sweep, arginfo_class_qmath_Collision_sweep, ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
+	ZEND_ME(qmath_Collision, queryBox, arginfo_class_qmath_Collision_queryBox, ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
 	ZEND_ME(qmath_Collision, sweepBoxes, arginfo_class_qmath_Collision_sweepBoxes, ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
 	ZEND_FE_END
 };
@@ -1920,12 +1956,6 @@ static zend_class_entry *register_class_qmath_CollisionRegion(void)
 	zend_string *const_INFO_MAY_OVERFLOW_name = zend_string_init_interned("INFO_MAY_OVERFLOW", sizeof("INFO_MAY_OVERFLOW") - 1, 1);
 	zend_declare_class_constant_ex(class_entry, const_INFO_MAY_OVERFLOW_name, &const_INFO_MAY_OVERFLOW_value, ZEND_ACC_PUBLIC, NULL);
 	zend_string_release(const_INFO_MAY_OVERFLOW_name);
-
-	zval const_MAX_CELLS_value;
-	ZVAL_LONG(&const_MAX_CELLS_value, 4194304);
-	zend_string *const_MAX_CELLS_name = zend_string_init_interned("MAX_CELLS", sizeof("MAX_CELLS") - 1, 1);
-	zend_declare_class_constant_ex(class_entry, const_MAX_CELLS_name, &const_MAX_CELLS_value, ZEND_ACC_PUBLIC, NULL);
-	zend_string_release(const_MAX_CELLS_name);
 
 	zval const_MAX_BOXES_PER_CELL_value;
 	ZVAL_LONG(&const_MAX_BOXES_PER_CELL_value, 64);

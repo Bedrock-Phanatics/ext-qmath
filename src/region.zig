@@ -34,12 +34,12 @@ pub fn fail(err: anyerror) Error {
     return switch (err) {
         error.PhpException, error.UnwindExit => @errorCast(err),
         error.OutOfMemory => rt.oom(),
-        error.OutOfRange => rt.throwCe(exception_ce, "The query needs cells outside the region"),
+        error.OutOfRange => rt.valueError("Coordinates are outside the supported world range", .{}),
         error.UnknownCell => rt.throwCe(exception_ce, "The query needs a cell with no collision data"),
         error.InvalidBox => rt.valueError("Bounding boxes must be finite with min <= max", .{}),
         error.InvalidInfo => rt.valueError("Invalid collision info, or boxes given for INFO_CUBE or INFO_NONE", .{}),
         error.TooManyBoxes => rt.valueError("Too many collision boxes for one cell", .{}),
-        error.RegionTooLarge => rt.valueError("Region bounds are inverted or exceed CollisionRegion::MAX_CELLS", .{}),
+        error.RegionTooLarge => rt.throwCe(exception_ce, "The region is full, or the query spans too many sections"),
         error.Frozen => rt.throwCe(rt.phpCe("spl_ce_LogicException"), "Cannot modify a frozen collision region"),
         error.ZeroLength => rt.invalidArgument(core.voxel.zero_length_message, .{}),
         error.TooManySamples => rt.valueError("Bounding box is too large to sample", .{}),
@@ -50,9 +50,10 @@ pub fn fail(err: anyerror) Error {
 pub const Backing = struct {
     region: ?collision.Region = null,
 
-    pub fn __construct(min_x: i64, min_y: i64, min_z: i64, max_x: i64, max_y: i64, max_z: i64) Error!Backing {
-        const r = collision.Region.init(rt.allocator, .{ min_x, min_y, min_z }, .{ max_x, max_y, max_z }) catch |e| return fail(e);
-        return .{ .region = r };
+    pub fn __construct(max_sections: ?i64) Error!Backing {
+        const n = max_sections orelse 16384;
+        if (n < 1 or n > 1 << 24) return rt.valueError("maxSections must be between 1 and 16777216", .{});
+        return .{ .region = collision.Region.init(rt.allocator, @intCast(n)) };
     }
 
     fn deinit(self: *Backing) void {
@@ -72,20 +73,12 @@ pub const Backing = struct {
         return rt.throwCe(rt.phpCe("zend_ce_error"), "CollisionRegion has not been constructed");
     }
 
-    pub fn getBounds(self: *Backing, ctx: Ctx) Error!void {
-        const r = (try self.get());
-        const max = r.maxCorner();
-        const out = rt.ret(ctx);
-        rt.newArray(out, 6);
-        for ([6]i64{ r.min[0], r.min[1], r.min[2], max[0], max[1], max[2] }) |v| {
-            var zv: c.zval = undefined;
-            rt.setLong(&zv, v);
-            _ = c.zend_hash_next_index_insert(out.value.arr, &zv);
-        }
-    }
-
     pub fn getVersion(self: *Backing) Error!i64 {
         return @intCast((try self.get()).version & std.math.maxInt(i64));
+    }
+
+    pub fn getSectionCount(self: *Backing) Error!i64 {
+        return @intCast((try self.get()).sectionCount());
     }
 
     pub fn isFrozen(self: *Backing) Error!bool {
@@ -107,12 +100,9 @@ pub const Backing = struct {
         out.u1.type_info = c.IS_OBJECT_EX;
     }
 
-    pub fn contains(self: *Backing, x: i64, y: i64, z: i64) Error!bool {
-        return (try self.get()).index(x, y, z) != null;
-    }
-
     pub fn isKnown(self: *Backing, x: i64, y: i64, z: i64) Error!bool {
-        _ = (try self.get()).cellInfo(x, y, z) catch return false;
+        var lk = collision.Lookup{};
+        _ = (try self.get()).cellInfo(&lk, x, y, z) catch return false;
         return true;
     }
 
@@ -138,8 +128,79 @@ pub const Backing = struct {
         (try self.get()).setCell(x, y, z, kind, buf[0..n]) catch |e| return cellFail(e, x, y, z);
     }
 
-    pub fn fill(self: *Backing, info: i64) Error!void {
-        (try self.get()).fill(try parseInfo(info)) catch |e| return fail(e);
+    pub fn setSection(self: *Backing, ctx: Ctx) Error!void {
+        try ctx.call.expectArgCount(4, 5);
+        const sx = try sectionCoord(try ctx.call.expectArg(1, .{ .int = .{} }, {}));
+        const sy = try sectionCoord(try ctx.call.expectArg(2, .{ .int = .{} }, {}));
+        const sz = try sectionCoord(try ctx.call.expectArg(3, .{ .int = .{} }, {}));
+        const bytes = try ctx.call.expectArg(4, .{ .string = .{} }, {});
+        if (bytes.len != collision.section_cells) return rt.valueError("infos must be exactly 4096 bytes", .{});
+        var infos: [collision.section_cells]collision.Info = undefined;
+        for (bytes, &infos) |b, *i| i.* = collision.Info.fromInt(b) orelse return rt.valueError("Invalid collision info {d}", .{b});
+
+        var all: std.ArrayList(Box) = .empty;
+        defer all.deinit(rt.allocator);
+        const Span = struct { index: u12, start: usize, len: usize };
+        var spans: std.ArrayList(Span) = .empty;
+        defer spans.deinit(rt.allocator);
+        if (ctx.call.argCount() >= 5) {
+            const arr = (try ctx.call.expectArg(5, .{ .array = .{} }, {})).ptr();
+            var pos: c.HashPosition = 0;
+            c.zend_hash_internal_pointer_reset_ex(arr, &pos);
+            while (c.zend_hash_get_current_data_ex(arr, &pos)) |raw| : (_ = c.zend_hash_move_forward_ex(arr, &pos)) {
+                var key: c.zval = undefined;
+                c.zend_hash_get_current_key_zval_ex(arr, &key, &pos);
+                defer c.zval_ptr_dtor(&key);
+                if (rt.ztype(&key) != rt.IS_LONG or key.value.lval < 0 or key.value.lval >= collision.section_cells) {
+                    return rt.valueError("Box keys must be cell indexes between 0 and 4095", .{});
+                }
+                var buf: [collision.max_boxes_per_cell]Box = undefined;
+                const zv = rt.deref(raw);
+                const n = switch (rt.ztype(zv)) {
+                    rt.IS_ARRAY => try readBoxList(zv.value.arr, &buf, 5),
+                    rt.IS_STRING => try readPackedBoxes(rt.zstr(zv.value.str), &buf),
+                    else => {
+                        c.zend_argument_type_error(5, "must contain AxisAlignedBB lists or packed strings, %s found", c.zend_zval_value_name(zv));
+                        return error.PhpException;
+                    },
+                };
+                const start = all.items.len;
+                all.appendSlice(rt.allocator, buf[0..n]) catch return rt.oom();
+                spans.append(rt.allocator, .{ .index = @intCast(key.value.lval), .start = start, .len = n }) catch return rt.oom();
+            }
+        }
+        const cell_boxes = rt.allocator.alloc(collision.CellBoxes, spans.items.len) catch return rt.oom();
+        defer rt.allocator.free(cell_boxes);
+        for (spans.items, cell_boxes) |sp, *cb| cb.* = .{ .index = sp.index, .boxes = all.items[sp.start..][0..sp.len] };
+        (try self.get()).setSection(sx, sy, sz, &infos, cell_boxes) catch |e| return switch (e) {
+            error.InvalidInfo => rt.valueError("Boxes were given for a cell that is not INFO_CUSTOM or INFO_MAY_OVERFLOW", .{}),
+            error.OutOfRange => rt.valueError("Section {d} {d} {d} is outside the supported world range", .{ sx, sy, sz }),
+            else => fail(e),
+        };
+    }
+
+    pub fn fillBox(self: *Backing, min_x: i64, min_y: i64, min_z: i64, max_x: i64, max_y: i64, max_z: i64, info: i64) Error!void {
+        (try self.get()).fillBox(.{ min_x, min_y, min_z }, .{ max_x, max_y, max_z }, try parseInfo(info)) catch |e| return switch (e) {
+            error.InvalidInfo => rt.valueError("fillBox() only accepts INFO_NONE or INFO_CUBE", .{}),
+            error.InvalidBox => rt.valueError("fillBox() bounds are inverted", .{}),
+            error.RegionTooLarge => rt.valueError("fillBox() covers too many cells", .{}),
+            else => fail(e),
+        };
+    }
+
+    pub fn missingSections(self: *Backing, ctx: Ctx) Error!void {
+        try ctx.call.expectArgCount(1, 1);
+        const b = try validBox(try aabb.argBox(ctx, 1));
+        var list: std.ArrayList(i64) = .empty;
+        defer list.deinit(rt.allocator);
+        (try self.get()).missingSections(b, &list, rt.allocator) catch |e| return fail(e);
+        const out = rt.ret(ctx);
+        rt.newArray(out, @intCast(list.items.len));
+        for (list.items) |v| {
+            var zv: c.zval = undefined;
+            rt.setLong(&zv, v);
+            _ = c.zend_hash_next_index_insert(out.value.arr, &zv);
+        }
     }
 
     pub fn invalidateCell(self: *Backing, x: i64, y: i64, z: i64) Error!void {
@@ -150,8 +211,12 @@ pub const Backing = struct {
         (try self.get()).invalidateBlock(x, y, z) catch |e| return fail(e);
     }
 
+    pub fn invalidateSection(self: *Backing, sx: i64, sy: i64, sz: i64) Error!void {
+        (try self.get()).invalidateSection(try sectionCoord(sx), try sectionCoord(sy), try sectionCoord(sz)) catch |e| return fail(e);
+    }
+
     pub fn invalidateChunk(self: *Backing, chunk_x: i64, chunk_z: i64) Error!void {
-        (try self.get()).invalidateChunk(chunk_x, chunk_z) catch |e| return fail(e);
+        (try self.get()).invalidateChunk(try sectionCoord(chunk_x), try sectionCoord(chunk_z)) catch |e| return fail(e);
     }
 
     pub fn invalidateAll(self: *Backing) Error!void {
@@ -182,12 +247,14 @@ pub const Backing = struct {
 
     pub fn getCellBoxes(self: *Backing, ctx: Ctx, x: i64, y: i64, z: i64) Error!void {
         var scratch: Box = undefined;
-        const boxes = (try self.get()).ownBoxes(x, y, z, &scratch) catch |e| return fail(e);
+        var lk = collision.Lookup{};
+        const boxes = (try self.get()).ownBoxes(&lk, x, y, z, &scratch) catch |e| return fail(e);
         retBoxes(rt.ret(ctx), boxes);
     }
 
     pub fn getCellInfo(self: *Backing, x: i64, y: i64, z: i64) Error!i64 {
-        const info = (try self.get()).cellInfo(x, y, z) catch |e| switch (e) {
+        var lk = collision.Lookup{};
+        const info = (try self.get()).cellInfo(&lk, x, y, z) catch |e| switch (e) {
             error.UnknownCell => return -1,
             else => return fail(e),
         };
@@ -195,8 +262,12 @@ pub const Backing = struct {
     }
 };
 
+fn sectionCoord(v: i64) Error!i32 {
+    return std.math.cast(i32, v) orelse rt.valueError("Section coordinate {d} is out of range", .{v});
+}
+
 fn cellFail(err: anyerror, x: i64, y: i64, z: i64) Error {
-    if (err == error.OutOfRange) return rt.valueError("Cell {d} {d} {d} is outside the region", .{ x, y, z });
+    if (err == error.OutOfRange) return rt.valueError("Cell {d} {d} {d} is outside the supported world range", .{ x, y, z });
     return fail(err);
 }
 
@@ -317,6 +388,14 @@ pub const Collision = struct {
         var key: c.zval = undefined;
         rt.setLong(&key, @intCast(hit.index));
         newSweepResult(rt.ret(ctx), hit.time, hit.face, &box, &key);
+    }
+
+    pub fn queryBox(ctx: Ctx) Error!void {
+        try ctx.call.expectArgCount(4, 5);
+        const b = try validBox(try aabb.argBox(ctx, 1));
+        const d = try readDelta(ctx, 2);
+        const step = if (ctx.call.argCount() >= 5) try finite(try ctx.call.expectArg(5, .{ .float = .{} }, {}), "stepHeight") else 0.0;
+        _ = aabb.newBox(rt.ret(ctx), collision.queryBox(b, d, step));
     }
 
     pub fn sweepBoxes(ctx: Ctx) Error!void {

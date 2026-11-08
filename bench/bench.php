@@ -136,9 +136,14 @@ foreach(["sparse" => 1, "dense" => 9] as $label => $seed){
 				\qmath\Collision::move($region, $bb, $dx, $dy, $dz, 0.6, true);
 			}
 		});
-		bench("region build 17x13x17 $label", "native", 50, function(int $n) use ($world) : void{
+		bench("region build per cell $label", "native", 50, function(int $n) use ($world) : void{
 			for($i = 0; $i < $n; ++$i){
 				$world->toRegion();
+			}
+		});
+		bench("region build per section $label", "native", 50, function(int $n) use ($world) : void{
+			for($i = 0; $i < $n; ++$i){
+				$world->toRegionSections();
 			}
 		});
 	}

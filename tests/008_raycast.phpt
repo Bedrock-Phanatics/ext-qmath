@@ -12,8 +12,8 @@ use qmath\CollisionRegion as R;
 
 function t(callable $f) { try { var_dump($f()); } catch (Throwable $e) { echo get_class($e), ": ", $e->getMessage(), "\n"; } }
 
-$r = new R(-8, -1, -8, 8, 8, 8);
-$r->fill(R::INFO_NONE);
+$r = new R();
+$r->fillBox(-8, -1, -8, 8, 8, 8, R::INFO_NONE);
 $r->setCell(4, 2, 0, R::INFO_CUBE);
 $r->setCell(2, 2, 0, R::INFO_CUSTOM, [new AxisAlignedBB(2, 2, 0, 3, 2.5, 1)]);
 

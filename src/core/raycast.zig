@@ -44,9 +44,10 @@ pub const BlockHit = struct {
 pub fn firstBlock(region: *const Region, start: NumVec, end: NumVec) Error!?BlockHit {
     var ray = try voxel.Ray.init(start, end);
     var scratch: Box = undefined;
+    var lk = collision.Lookup{};
     while (true) {
         const c = ray.cell() orelse return error.OutOfRange;
-        const boxes = try region.ownBoxes(c[0], c[1], c[2], &scratch);
+        const boxes = try region.ownBoxes(&lk, c[0], c[1], c[2], &scratch);
         if (nearest(boxes, start, end)) |h| return .{ .cell = c, .hit = h };
         if (!ray.advance()) return null;
     }
@@ -99,9 +100,9 @@ fn nv(x: f64, y: f64, z: f64) NumVec {
 }
 
 fn testRegion() !Region {
-    var r = try Region.init(testing.allocator, .{ -2, -2, -2 }, .{ 12, 6, 6 });
+    var r = Region.init(testing.allocator, 64);
     errdefer r.deinit();
-    try r.fill(.none);
+    try r.fillBox(.{ -2, -2, -2 }, .{ 12, 6, 6 }, .none);
     return r;
 }
 
@@ -144,5 +145,6 @@ test "unknown voxels on the path are errors" {
     try r.invalidateCell(3, 1, 1);
     try testing.expectError(error.UnknownCell, firstBlock(&r, nv(0.5, 1.5, 1.5), nv(10.5, 1.5, 1.5)));
     try r.setCell(3, 1, 1, .none, &.{});
-    try testing.expectError(error.OutOfRange, firstBlock(&r, nv(0.5, 1.5, 1.5), nv(100.5, 1.5, 1.5)));
+    try testing.expectError(error.UnknownCell, firstBlock(&r, nv(0.5, 1.5, 1.5), nv(100.5, 1.5, 1.5)));
+    try testing.expectError(error.OutOfRange, firstBlock(&r, nv(1e12, 1.5, 1.5), nv(0.5, 1.5, 1.5)));
 }
