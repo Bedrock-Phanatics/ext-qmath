@@ -1,5 +1,3 @@
-//! Segment queries against block collision data.
-
 const std = @import("std");
 const geom = @import("geom.zig");
 const voxel = @import("voxel.zig");
@@ -19,7 +17,6 @@ pub const BoxHit = struct {
     index: usize,
 };
 
-/// Block::calculateIntercept(): the nearest intercept among `boxes`.
 pub fn nearest(boxes: []const Box, start: NumVec, end: NumVec) ?BoxHit {
     var best: ?BoxHit = null;
     var distance: f64 = geom.php_int_max_f;
@@ -39,8 +36,7 @@ pub const BlockHit = struct {
     hit: BoxHit,
 };
 
-/// The block pass of Projectile::move(): walks voxels in VoxelRayTrace order and stops at the first
-/// voxel whose own collision boxes intercept the segment.
+/// Stops at the first voxel whose own boxes intercept the segment.
 pub fn firstBlock(region: *const Region, start: NumVec, end: NumVec) Error!?BlockHit {
     var ray = try voxel.Ray.init(start, end);
     // A non-finite length never ends, and nothing can interrupt a native loop.
@@ -58,9 +54,8 @@ pub fn firstBlock(region: *const Region, start: NumVec, end: NumVec) Error!?Bloc
 const max_samples_per_axis = 1024;
 const max_samples = 1 << 22;
 
-/// Explosion::getExposure(): the fraction of sample points in `bb` with an unobstructed line to `origin`.
+/// Fraction of sample points in `bb` with a clear line to `origin`.
 pub fn exposure(region: *const Region, origin: NumVec, bb: Box) Error!f64 {
-    // (new Vector3($xLen, $yLen, $zLen))->multiply(2)->add(1, 1, 1)
     var diff: Vec = undefined;
     var step: Vec = undefined;
     inline for (0..3) |a| {

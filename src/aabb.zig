@@ -1,5 +1,3 @@
-//! pocketmine\math\AxisAlignedBB and RayTraceResult.
-
 const std = @import("std");
 const rt = @import("rt.zig");
 const phpz = rt.phpz;
@@ -47,7 +45,7 @@ fn writeBox(o: ZObj, b: Box) Error!void {
     }
 }
 
-/// A new AxisAlignedBB without the constructor's bounds check.
+/// Skips the constructor's bounds check.
 pub fn newBox(out: *c.zval, b: Box) ZObj {
     const o = rt.newObject(out, bb_ce);
     inline for (0..3) |a| {
@@ -57,7 +55,6 @@ pub fn newBox(out: *c.zval, b: Box) ZObj {
     return o;
 }
 
-/// `new AxisAlignedBB(...)` including its bounds check.
 fn constructBox(out: *c.zval, b: Box) Error!void {
     try checkBounds(b);
     _ = newBox(out, b);
@@ -74,7 +71,7 @@ fn checkBounds(b: Box) Error!void {
     }
 }
 
-/// A RayTraceResult whose box is `box_obj`, which gains a reference.
+/// Takes its own reference to `box_obj`.
 pub fn newRayTraceResult(out: *c.zval, ce: rt.Ce, box_obj: ZObj, face: i64, hit: rt.Vec) ZObj {
     const o = rt.newObject(out, ce);
     rt.retObjectCopy(rt.initSlot(o, rtr[0]), box_obj);
@@ -87,14 +84,12 @@ fn self(ctx: Ctx) Error!Box {
     return readBox(rt.this(ctx));
 }
 
-/// Mutates `$this` and returns it.
 fn mutate(ctx: Ctx, b: Box) Error!void {
     const o = rt.this(ctx);
     try writeBox(o, b);
     rt.retObjectCopy(rt.ret(ctx), o);
 }
 
-/// `(clone $this)` with new bounds.
 fn cloned(ctx: Ctx, b: Box) Error!void {
     const o = rt.this(ctx);
     const copy = o.handlers.*.clone_obj.?(o) orelse return error.PhpException;

@@ -36,7 +36,6 @@ var_dump($key, (string) $res->hitVector, (string) $res->bb);
 var_dump(Raycast::boxes(new Vector3(0.5, 3, 0.5), new Vector3(9.5, 3, 0.5), $boxes));
 t(fn() => Raycast::boxes(new Vector3(0, 0, 0), new Vector3(1, 1, 1), [1]));
 
-// batched rays use packed buffers
 $segments = pack("e*", 0.5, 2.25, 0.5, 7.5, 2.25, 0.5) . pack("e*", 0.5, 4.5, 0.5, 7.5, 4.5, 0.5);
 $out = Raycast::batchBlocks($r, $segments);
 var_dump(strlen($out), unpack("qface/qx/qy/qz/ehx/ehy/ehz", $out), unpack("qface", substr($out, 56))["face"]);

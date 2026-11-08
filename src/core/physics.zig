@@ -1,4 +1,4 @@
-//! Entity motion formulas from Quark, kept in their original operation order.
+//! Kept in Quark's original operation order.
 
 const std = @import("std");
 const num = @import("num.zig");
@@ -15,7 +15,6 @@ const pow = libm.powFn;
 pub const pi: f64 = 3.14159265358979323846;
 pub const pi_2: f64 = 1.57079632679489661923;
 
-/// PHP deg2rad()
 pub fn deg2rad(deg: f64) f64 {
     return (deg / 180.0) * pi;
 }
@@ -29,8 +28,7 @@ pub const MotionParams = struct {
     threshold: f64 = 0.00001,
 };
 
-/// Entity::tryChangeMovement() then the MOTION_THRESHOLD clamp from Entity::onUpdate().
-/// Clamped components become int 0 like withComponents(0, ...).
+/// Clamped components become int 0 like PHP.
 pub fn motionStep(m: NumVec, p: MotionParams) NumVec {
     var friction = 1 - p.drag;
     var my = m[1];
@@ -45,7 +43,7 @@ pub fn motionStep(m: NumVec, p: MotionParams) NumVec {
     return r;
 }
 
-/// Living::knockBack() after the resistance roll. Null when the direction has no length.
+/// Null when the direction has no length.
 pub fn knockBack(m: NumVec, x: f64, z: f64, force: f64, vertical_limit: ?f64) ?NumVec {
     var f = @sqrt(x * x + z * z);
     if (f <= 0) return null;
@@ -61,7 +59,6 @@ pub fn knockBack(m: NumVec, x: f64, z: f64, force: f64, vertical_limit: ?f64) ?N
     return .{ Num.f(mx), Num.f(my), Num.f(mz) };
 }
 
-/// Vector3::normalize()
 pub fn normalize(v: NumVec) NumVec {
     const len = v[0].mul(v[0]).add(v[1].mul(v[1])).add(v[2].mul(v[2]));
     if (len.toFloat() > 0) {
@@ -71,7 +68,6 @@ pub fn normalize(v: NumVec) NumVec {
     return .{ Num.i(0), Num.i(0), Num.i(0) };
 }
 
-/// Entity::getDirectionVector()
 pub fn directionVector(yaw: f64, pitch: f64) NumVec {
     const y = num.negf(sin(deg2rad(pitch)));
     const xz = cos(deg2rad(pitch));
@@ -80,7 +76,6 @@ pub fn directionVector(yaw: f64, pitch: f64) NumVec {
     return normalize(.{ Num.f(x), Num.f(y), Num.f(z) });
 }
 
-/// Entity::getDirectionPlane() before Vector2 wrapping.
 pub fn directionPlane(yaw: f64) [2]f64 {
     const x = num.negf(cos(deg2rad(yaw) - pi_2));
     const y = num.negf(sin(deg2rad(yaw) - pi_2));
@@ -92,7 +87,6 @@ pub fn directionPlane(yaw: f64) [2]f64 {
     return .{ 0, 0 };
 }
 
-/// Entity::getHorizontalFacing()
 pub fn horizontalFacing(yaw: f64) i64 {
     var angle = fmod(yaw, 360);
     if (angle < 0) angle += 360.0;
@@ -109,7 +103,7 @@ fn square(v: Num) Num {
     };
 }
 
-/// Living::lookAt() with the eye position already offset.
+/// Eye position is already offset.
 pub fn lookAt(eye: NumVec, target: NumVec) [2]f64 {
     const x_dist = target[0].sub(eye[0]);
     const z_dist = target[2].sub(eye[2]);

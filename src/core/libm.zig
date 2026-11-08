@@ -1,6 +1,5 @@
-//! The C runtime's math functions, which PHP's sin(), cos(), atan2(), fmod() and `**` call.
-//! Linking can pull in compiler-rt copies whose last bit differs, so the functions are looked up in
-//! the running process at startup instead. Until init() runs, Zig's implementations stand in.
+//! PHP calls the C runtime's math, which is looked up in the process at startup because
+//! compiler-rt copies can differ in the last bit. Zig's versions stand in until init().
 
 const std = @import("std");
 const builtin = @import("builtin");
@@ -13,7 +12,6 @@ pub var cos: Unary = &zigCos;
 pub var atan2: Binary = &zigAtan2;
 pub var fmod: Binary = &zigFmod;
 pub var pow: Binary = &zigPow;
-/// Whether every function came from the C runtime.
 pub var native: bool = false;
 
 fn zigSin(x: f64) callconv(.c) f64 {
@@ -56,7 +54,7 @@ fn resolver() ?Resolver {
         }
         return null;
     }
-    // The main program's handle searches the global scope, where PHP's libm lives. Our own copies are local.
+    // The main program's handle searches the global scope, where PHP's libm lives.
     return .{ .handle = std.c.dlopen(null, .{ .LAZY = true }) orelse return null };
 }
 

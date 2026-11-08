@@ -1,8 +1,7 @@
 <?php
 
 // php bench.php ref|ext [filter]
-// ref runs PHP code on QuarkMath. ext runs the same PHP code on the native classes ("php")
-// and, where one exists, the native qmath API ("native").
+// ref runs PHP code on QuarkMath, ext runs it on the native classes ("php") and the qmath API ("native")
 
 declare(strict_types=1);
 
@@ -14,13 +13,13 @@ use pocketmine\math\VoxelRayTrace;
 
 [, $mode, $filter] = $argv + [null, "ext", ""];
 if($mode === "ref"){
-	$src = getenv("QUARKMATH_SRC") ?: __DIR__ . "/../../QuarkMath/src";
+	$src = getenv("QUARKMATH_SRC") ?: __DIR__ . "/../../../QuarkMath/src";
 	foreach(["Axis", "Facing", "Math", "Vector2", "Vector3", "VectorMath", "AxisAlignedBB", "RayTraceResult", "VoxelRayTrace", "Matrix"] as $class){
 		require "$src/$class.php";
 	}
 }
-require __DIR__ . "/../tests/diff/lib.php";
-require __DIR__ . "/../tests/diff/reference.php";
+require __DIR__ . "/../diff/lib.php";
+require __DIR__ . "/../diff/reference.php";
 $native = $mode === "ext";
 
 function bench(string $name, string $variant, int $iterations, callable $fn) : void{

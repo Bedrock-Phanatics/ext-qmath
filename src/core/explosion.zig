@@ -1,5 +1,3 @@
-//! Explosion::explodeA() ray marching over a grid of blast resistances.
-
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const num = @import("num.zig");
@@ -9,7 +7,7 @@ const NumVec = @import("geom.zig").NumVec;
 const pow = @import("libm.zig").powFn;
 
 pub const max_cells: usize = 1 << 22;
-/// Steps over all rays of one explosion, since nothing can interrupt the native loop.
+/// Step budget per explosion, the native loop can't be interrupted.
 const max_steps: f64 = 100_000_000;
 
 pub const Error = error{ OutOfMemory, OutOfRange, UnknownCell, RegionTooLarge, InvalidArgument };
@@ -51,7 +49,7 @@ pub const Grid = struct {
         return self.values.len;
     }
 
-    /// Same layout as the collision region: y fastest, then z, then x.
+    /// Layout is y fastest, then z, then x.
     pub fn index(self: *const Grid, x: i64, y: i64, z: i64) ?usize {
         const p = [3]i64{ x, y, z };
         var rel: [3]u64 = undefined;
@@ -108,7 +106,6 @@ fn intDiv(a: i64, b: i64) Num {
     return Num.f(@as(f64, @floatFromInt(a)) / @as(f64, @floatFromInt(b)));
 }
 
-/// `$v ** 2` for int|float.
 fn square(v: Num) Num {
     return switch (v) {
         .int => v.mul(v),
@@ -135,8 +132,7 @@ pub fn isBoundaryRay(p: Params, i: i64, j: i64, k: i64) bool {
     return i == 0 or i == m or j == 0 or j == m or k == 0 or k == m;
 }
 
-/// One iteration of the innermost explodeA() loop body. `rng.range(min, max)` must be mt_rand().
-/// Each cell reached with force left is passed to `sink.add(x, y, z)`, consecutive repeats skipped.
+/// `rng.range(min, max)` must be mt_rand(). Consecutive repeat cells are skipped.
 pub fn traceRay(grid: *const Grid, source: NumVec, p: Params, i: i64, j: i64, k: i64, rng: anytype, sink: anytype) !void {
     const m = p.rays - 1;
     var shift: [3]Num = undefined;
@@ -196,7 +192,7 @@ pub const ListSink = struct {
     }
 };
 
-/// Every ray of explodeA() in its original order, returning first-seen cells without duplicates.
+/// Original ray order, first-seen cells only.
 pub fn traceRays(grid: *const Grid, allocator: Allocator, source: NumVec, p: Params, rng: anytype, out: *std.ArrayList(i64)) !void {
     try p.validate();
     var seen = try std.DynamicBitSetUnmanaged.initEmpty(allocator, grid.cellCount());

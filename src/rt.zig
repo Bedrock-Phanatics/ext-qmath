@@ -1,8 +1,5 @@
-//! Shared Zend helpers for the PHP bindings.
-//!
-//! Classes that replace QuarkMath keep all state in their declared PHP properties. Native code reads
-//! and writes the property slots directly when that is equivalent to a normal property access, and
-//! falls back to the object handlers otherwise (unset, lazy or hooked properties).
+//! Property slots are read and written directly when that matches normal access.
+//! Unset, lazy or hooked properties go through the object handlers instead.
 
 const std = @import("std");
 pub const phpz = @import("phpz");
@@ -65,7 +62,7 @@ pub inline fn props(o: ZObj) [*]c.zval {
     return @ptrCast(&o._properties_table);
 }
 
-/// Class entry exported by PHP itself; data symbols need DLL import handling on Windows.
+/// Data symbols need DLL import handling on Windows.
 pub inline fn phpCe(comptime symbol: []const u8) Ce {
     return phpz.ClassEntry.builtin(symbol).ptr();
 }
@@ -94,11 +91,10 @@ pub fn instanceOf(o: ZObj, ce: Ce) bool {
     return o.ce == ce or c.instanceof_function_slow(o.ce, ce);
 }
 
-/// A declared property: its slot and interned name, resolved during MINIT.
 pub const Prop = struct {
     slot: u32 = 0,
     name: *c.zend_string = undefined,
-    /// Declaring class, the scope that can see the property even when it is private.
+    /// Declaring class, so private properties stay reachable.
     scope: Ce = undefined,
 
     pub fn resolve(ce: Ce, comptime name: []const u8) Prop {
@@ -110,8 +106,7 @@ pub const Prop = struct {
     }
 };
 
-/// Whether every listed slot of `ce` is a plain stored property, so direct slot access matches a
-/// normal property access. Subclasses may redeclare inherited properties with hooks.
+/// Subclasses may redeclare inherited properties with hooks, which breaks direct slot access.
 pub fn plainSlots(ce: Ce, base: Ce, list: []const Prop) bool {
     if (ce == base) return true;
     const table = ce.properties_info_table orelse return false;
@@ -143,7 +138,6 @@ fn readNumSlow(o: ZObj, p: Prop) Error!Num {
     };
 }
 
-/// Reads an int|float property.
 pub inline fn readNum(o: ZObj, p: Prop, plain: bool) Error!Num {
     if (plain) {
         const zv = deref(&props(o)[p.slot]);
@@ -156,27 +150,24 @@ pub inline fn readNum(o: ZObj, p: Prop, plain: bool) Error!Num {
     return readNumSlow(o, p);
 }
 
-/// Reads a float property of a final class. Typed float properties always hold a double once initialized.
+/// Typed float properties always hold a double once initialized.
 pub inline fn readFloat(o: ZObj, p: Prop) Error!f64 {
     const zv = deref(&props(o)[p.slot]);
     if (ztype(zv) == IS_DOUBLE) return zv.value.dval;
     return (try readNumSlow(o, p)).toFloat();
 }
 
-/// readFloat() for classes a subclass may redeclare with hooks.
 pub inline fn readFloatOf(o: ZObj, p: Prop, plain: bool) Error!f64 {
     if (plain) return readFloat(o, p);
     return (try readNumSlow(o, p)).toFloat();
 }
 
-/// Writes a number to a declared property the way `$obj->prop = $value` would.
 pub fn writeNum(o: ZObj, p: Prop, plain: bool, n: Num) Error!void {
     if (plain) {
         const zv = &props(o)[p.slot];
         switch (ztype(zv)) {
             IS_UNDEF, IS_LONG, IS_DOUBLE => {
-                // An unset slot is only written directly while the object is still being constructed
-                // without magic; otherwise the handler decides.
+                // Unset slots are only written directly while constructing without magic.
                 if (ztype(zv) != IS_UNDEF or (o.ce.*.__set == null and !lazy(o))) {
                     setNum(zv, n);
                     zv.u2.extra = 0;
@@ -205,7 +196,6 @@ fn lazy(o: ZObj) bool {
     return c.zend_object_is_lazy(o);
 }
 
-/// Writes any zval to a declared property through the regular write path.
 pub fn writeZval(o: ZObj, p: Prop, value: *c.zval) Error!void {
     c.zend_update_property_ex(p.scope, o, p.name, value);
     if (phpz.exception.hasPending()) return error.PhpException;
@@ -217,7 +207,7 @@ pub inline fn retObjectCopy(out: *c.zval, o: ZObj) void {
     out.u1.type_info = c.IS_OBJECT_EX;
 }
 
-/// Keeps an object alive while PHP code, such as a property hook, may drop other references to it.
+/// Keeps the object alive while PHP code, like a property hook, may drop other references.
 pub inline fn hold(o: ZObj) void {
     o.gc.refcount += 1;
 }
@@ -226,7 +216,7 @@ pub inline fn release(o: ZObj) void {
     c.zend_object_release(o);
 }
 
-/// Keeps an array alive and unmodified while PHP code may run, user writes then separate a copy.
+/// A pinned array stays unmodified, user writes separate a copy.
 pub inline fn pinArray(arr: *c.zend_array) void {
     if ((arr.gc.u.type_info & (c.GC_IMMUTABLE << c.GC_FLAGS_SHIFT)) == 0) arr.gc.refcount += 1;
 }
@@ -240,21 +230,18 @@ pub inline fn newArray(out: *c.zval, size: u32) void {
     out.u1.type_info = c.IS_ARRAY_EX;
 }
 
-/// New object of an internal class without running a constructor.
 pub inline fn newObject(out: *c.zval, ce: Ce) ZObj {
     _ = c.object_init_ex(out, ce);
     return out.value.obj;
 }
 
-/// A still-undef slot of an object returned by newObject(), with the uninitialized property flag
-/// cleared like a regular first assignment.
+/// Clears the uninitialized flag like a first assignment.
 pub inline fn initSlot(o: ZObj, p: Prop) *c.zval {
     const zv = &props(o)[p.slot];
     zv.u2.extra = 0;
     return zv;
 }
 
-/// ZVAL_COPY()
 pub inline fn copy(dst: *c.zval, src: *const c.zval) void {
     c.phpz_zval_copy(dst, src);
 }
@@ -287,9 +274,8 @@ pub fn divisionByZero() Error {
     return throwCe(phpCe("zend_ce_division_by_zero_error"), "Division by zero");
 }
 
-/// PHP's string conversion of a number, as used by concatenation and interpolation.
 pub const NumText = struct {
-    /// Fits any `precision` setting, which zend_gcvt() caps at 318 digits.
+    /// zend_gcvt() caps precision at 318 digits.
     buf: [512]u8 = undefined,
     len: usize = 0,
 
@@ -314,7 +300,6 @@ pub const NumText = struct {
     }
 };
 
-/// Builds a PHP string from parts and returns it in `out`.
 pub fn retString(out: *c.zval, parts: []const []const u8) void {
     var total: usize = 0;
     for (parts) |p| total += p.len;
@@ -334,9 +319,8 @@ pub fn retStringBytes(out: *c.zval, bytes: []const u8) void {
     retString(out, &.{bytes});
 }
 
-/// Persistent immutable array, the same shape opcache gives constant arrays.
 pub fn persistentArray(count: u32) *c.zend_array {
-    // malloc() like pemalloc(), whose signature differs between debug and release PHP builds.
+    // Plain malloc, pemalloc has a different signature in debug and release PHP builds.
     const ht = std.heap.c_allocator.create(c.zend_array) catch @panic("qmath: out of memory during startup");
     c._zend_hash_init(ht, count, null, true);
     c.zend_hash_real_init_packed(ht);
@@ -344,13 +328,13 @@ pub fn persistentArray(count: u32) *c.zend_array {
 }
 
 pub fn freezeArray(ht: *c.zend_array) void {
-    // Keep the persistent flag, zend_hash_destroy() relies on it to pick the right free.
+    // Keep the persistent flag, zend_hash_destroy() uses it to pick the right free.
     ht.gc.refcount = 2;
     ht.gc.u.type_info |= (c.GC_IMMUTABLE | c.GC_NOT_COLLECTABLE) << c.GC_FLAGS_SHIFT;
 }
 
 pub fn freeArray(ht: *c.zend_array) void {
-    // The extension is the only owner at shutdown, debug builds assert that before destroying.
+    // Debug builds assert a single owner before destroying.
     ht.gc.refcount = 1;
     c.zend_hash_destroy(ht);
     std.heap.c_allocator.destroy(ht);
@@ -361,16 +345,14 @@ pub inline fn setImmutableArray(zv: *c.zval, ht: *c.zend_array) void {
     zv.u1.type_info = IS_ARRAY;
 }
 
-/// Request-memory allocator backed by emalloc, so memory_limit applies.
+/// Backed by emalloc so memory_limit applies.
 pub const allocator = phpz.heap.php_allocator;
 
-/// Maps allocation failures to a pending PHP error.
 pub fn oom() Error {
     if (!phpz.exception.hasPending()) _ = c.zend_throw_error(null, "Out of memory");
     return error.PhpException;
 }
 
-/// Lowercase-safe access to a zend_string's bytes.
 pub inline fn zstr(s: *c.zend_string) []const u8 {
     return s.val()[0..s.len];
 }
@@ -379,7 +361,6 @@ pub inline fn zstrC(s: [*c]c.zend_string) [*:0]const u8 {
     return @ptrCast(s.*.val());
 }
 
-/// Reads an int property such as Facing values on RayTraceResult.
 pub fn readLong(o: ZObj, p: Prop) Error!i64 {
     const zv = deref(&props(o)[p.slot]);
     if (ztype(zv) == IS_LONG) return zv.value.lval;
@@ -390,7 +371,7 @@ pub fn readLong(o: ZObj, p: Prop) Error!i64 {
     return res.value.lval;
 }
 
-/// Borrows the object stored in a property, reading through handlers when needed.
+/// Borrowed, `rv` owns the value when it was read through handlers.
 pub fn readObject(o: ZObj, p: Prop, rv: *c.zval) Error!?ZObj {
     const slot = deref(&props(o)[p.slot]);
     if (ztype(slot) == IS_OBJECT) return slot.value.obj;

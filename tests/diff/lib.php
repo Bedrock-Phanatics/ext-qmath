@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace qmath\test;
 
-/** Deterministic xorshift so both processes generate identical cases without touching mt_rand. */
+/** xorshift so both processes generate identical cases */
 final class Gen{
 	private int $s;
 
@@ -41,7 +41,6 @@ final class Gen{
 		return $items[$this->int(0, count($items) - 1)];
 	}
 
-	/** int|float coordinate including awkward values. */
 	public function num() : int|float{
 		return match($this->int(0, 9)){
 			0 => $this->int(-40, 40),
@@ -57,7 +56,6 @@ final class Gen{
 	}
 }
 
-/** Canonical, bit-exact encoding of a result. */
 function enc(mixed $v, int $depth = 0) : string{
 	if($depth > 6){
 		return "...";
@@ -72,7 +70,7 @@ function enc(mixed $v, int $depth = 0) : string{
 		return "i" . $v;
 	}
 	if(is_float($v)){
-		// NaN sign and payload bits are unspecified when two NaNs meet, so every NaN compares equal
+		// NaN payload bits are unspecified so all NaNs compare equal
 		return is_nan($v) ? "fNAN" : "f" . bin2hex(pack("e", $v));
 	}
 	if(is_string($v)){
@@ -108,7 +106,7 @@ function enc(mixed $v, int $depth = 0) : string{
 	return gettype($v);
 }
 
-/** Runs a case and encodes its result or exception. Type errors only compare their class. */
+/** Type errors only compare their class */
 function run(callable $fn) : string{
 	global $qmathWarnings;
 	$qmathWarnings = [];

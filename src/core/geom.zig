@@ -1,5 +1,4 @@
-//! Axis-aligned box geometry ported from QuarkMath's AxisAlignedBB and Vector3.
-//! Axes are indexed 0 = x, 1 = y, 2 = z. Facing values use QuarkMath's encoding.
+//! Axes are 0 = x, 1 = y, 2 = z, facing values use QuarkMath's encoding.
 
 const std = @import("std");
 const Num = @import("num.zig").Num;
@@ -15,10 +14,8 @@ pub const facing = struct {
     pub const west: i64 = 4;
     pub const east: i64 = 5;
 
-    /// Facing::OFFSET indexed by facing.
     pub const offsets = [6][3]i64{ .{ 0, -1, 0 }, .{ 0, 1, 0 }, .{ 0, 0, -1 }, .{ 0, 0, 1 }, .{ -1, 0, 0 }, .{ 1, 0, 0 } };
 
-    /// Negative and positive facing for an axis index (0 = x, 1 = y, 2 = z).
     pub fn ofAxis(axis: usize, positive: bool) i64 {
         const neg = [3]i64{ west, down, north };
         return neg[axis] + @intFromBool(positive);
@@ -35,7 +32,6 @@ pub const Box = struct {
         return .{ .min = .{ min_x, min_y, min_z }, .max = .{ max_x, max_y, max_z } };
     }
 
-    /// AxisAlignedBB::one()->offset(x, y, z)
     pub fn unitAt(x: i64, y: i64, z: i64) Box {
         const fx: f64 = @floatFromInt(x);
         const fy: f64 = @floatFromInt(y);
@@ -88,11 +84,11 @@ pub const Box = struct {
         return r;
     }
 
-    /// AxisAlignedBB::calculate{X,Y,Z}Offset() where `self` is the obstacle and `bb` the moving box.
+    /// `self` is the obstacle, `bb` the moving box.
     pub fn calculateOffset(self: Box, comptime axis: usize, bb: Box, d_in: f64) f64 {
         const o1 = (axis + 1) % 3;
         const o2 = (axis + 2) % 3;
-        // QuarkMath checks Y before Z for X, X before Z for Y and X before Y for Z. The result is the same either way.
+        // QuarkMath checks the other axes in a different order but the result is the same.
         if (bb.max[o1] <= self.min[o1] or bb.min[o1] >= self.max[o1]) return d_in;
         if (bb.max[o2] <= self.min[o2] or bb.min[o2] >= self.max[o2]) return d_in;
         var d = d_in;
@@ -106,7 +102,6 @@ pub const Box = struct {
         return d;
     }
 
-    /// AxisAlignedBB::intersectsWith(); `self` is `$this`.
     pub fn intersects(self: Box, bb: Box, epsilon: f64) bool {
         if (bb.max[0] - self.min[0] > epsilon and self.max[0] - bb.min[0] > epsilon) {
             if (bb.max[1] - self.min[1] > epsilon and self.max[1] - bb.min[1] > epsilon) {
@@ -122,7 +117,7 @@ pub const Box = struct {
         return v[2] > self.min[2] and v[2] < self.max[2];
     }
 
-    /// isVectorInYZ / isVectorInXZ / isVectorInXY: closed bounds on the two axes other than `skip`.
+    /// Closed bounds on the two axes other than `skip`.
     pub fn isVectorInPlane(self: Box, comptime skip: usize, v: Vec) bool {
         const a = (skip + 1) % 3;
         const b = (skip + 2) % 3;
@@ -145,7 +140,6 @@ pub const Box = struct {
         return dx * dx + dy * dy + dz * dz;
     }
 
-    /// Slab test for the closed segment start..end.
     pub fn intersectsSegment(self: Box, start: Vec, end: Vec) bool {
         var t0: f64 = 0.0;
         var t1: f64 = 1.0;
@@ -179,7 +173,7 @@ pub fn numVecToFloat(v: NumVec) Vec {
     return .{ v[0].toFloat(), v[1].toFloat(), v[2].toFloat() };
 }
 
-/// Vector3::getIntermediateWith{X,Y,Z}Value(): the point on from..to whose `axis` component equals `value`.
+/// Point on from..to whose `axis` component equals `value`.
 pub fn intermediate(comptime axis: usize, from: NumVec, to: NumVec, value: f64) ?Vec {
     const diff = to[axis].sub(from[axis]);
     const sq = diff.mul(diff);
@@ -203,10 +197,9 @@ pub const Intercept = struct {
     hit: Vec,
 };
 
-/// (double) PHP_INT_MAX, the initial "no hit yet" distance used by QuarkMath.
+/// (double) PHP_INT_MAX, QuarkMath's initial "no hit" distance.
 pub const php_int_max_f: f64 = 9223372036854775807.0;
 
-/// Vector3::distanceSquared() of an int|float vector against a float vector.
 pub fn distanceSquaredNum(a: NumVec, b: Vec) f64 {
     const dx = a[0].sub(Num.f(b[0])).toFloat();
     const dy = a[1].sub(Num.f(b[1])).toFloat();
@@ -214,7 +207,6 @@ pub fn distanceSquaredNum(a: NumVec, b: Vec) f64 {
     return (dx * dx) + (dy * dy) + (dz * dz);
 }
 
-/// AxisAlignedBB::calculateIntercept()
 pub fn calculateIntercept(box: Box, pos1: NumVec, pos2: NumVec) ?Intercept {
     var v: [6]?Vec = .{
         intermediate(0, pos1, pos2, box.min[0]),
@@ -251,12 +243,11 @@ pub fn calculateIntercept(box: Box, pos1: NumVec, pos2: NumVec) ?Intercept {
 
 pub const Sweep = struct {
     time: f64,
-    /// Facing of the obstacle surface that was hit, -1 when the boxes already overlap.
+    /// Facing of the hit surface, -1 when the boxes already overlap.
     face: i64,
 };
 
-/// Continuous swept test of `moving` displaced by `d` against a static `obstacle`. Touching boxes
-/// count as contact at their touching time. Equal entry times on several axes pick x, then y, then z.
+/// Touching boxes count as contact. Equal entry times pick x, then y, then z.
 pub fn sweep(moving: Box, d: Vec, obstacle: Box) ?Sweep {
     var entry: f64 = -std.math.inf(f64);
     var exit: f64 = std.math.inf(f64);
@@ -298,7 +289,6 @@ test "calculateOffset clips against obstacles" {
     const entity = Box.init(0.2, 1.5, 0.2, 0.8, 3.3, 0.8);
     try testing.expectEqual(@as(f64, -0.5), floor.calculateOffset(1, entity, -2.0));
     try testing.expectEqual(@as(f64, -0.25), floor.calculateOffset(1, entity, -0.25));
-    // no overlap on the other axes
     const side = Box.init(2, 0, 0, 3, 1, 1);
     try testing.expectEqual(@as(f64, -2.0), side.calculateOffset(1, entity, -2.0));
 }

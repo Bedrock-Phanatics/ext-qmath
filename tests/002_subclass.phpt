@@ -43,7 +43,6 @@ $l = new Location(0.5, 70, 0.5, $w, 90.0, 10.0);
 var_dump($l->x, $l->yaw, (array) $l === ['x' => 0.5, 'y' => 70.0, 'z' => 0.5, 'world' => $w, 'yaw' => 90.0, 'pitch' => 10.0]);
 echo $l->distance(new Vector3(0.5, 72, 0.5)), "\n";
 
-// serialization keeps the class and the declared properties
 $v = unserialize(serialize(new Vector3(1, 2.5, -3)));
 var_dump($v, unserialize(serialize($l))->yaw, json_encode(new Vector3(1, 2.5, 3)));
 var_export(new Vector3(1, 2, 3.5));
@@ -52,7 +51,7 @@ $c = clone $p;
 $c->x = 99;
 var_dump($p->x, $c->x, $c->world === $p->world);
 
-// a PHP 8.4 subclass may add hooks to inherited properties, native code must honour them
+// 8.4 subclasses may add hooks to inherited properties, native code must honour them
 class Hooked extends Vector3 {
     public float|int $x { get => $this->x * 10; set(float|int $value) { $this->x = $value; } }
 }

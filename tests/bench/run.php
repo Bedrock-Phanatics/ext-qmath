@@ -1,6 +1,6 @@
 <?php
 
-// php bench/run.php --ext=modules/php_qmath.so [--php=php] [--filter=name]
+// php tests/bench/run.php --ext=modules/php_qmath.so [--php=php] [--filter=name]
 // Needs QUARKMATH_SRC pointing at QuarkMath's src/ for the baseline.
 
 declare(strict_types=1);

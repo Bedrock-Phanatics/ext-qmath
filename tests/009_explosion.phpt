@@ -43,7 +43,6 @@ t(fn() => $g->setPacked("x"));
 $small = new ResistanceGrid(0, 0, 0, 1, 1, 0);
 $small->setPacked(pack("e*", 1.0, NAN, 2.0, 3.0));
 
-// exposure: an open field sees everything, a wall hides the entity
 $r = new R();
 $r->fillBox(-8, -2, -8, 8, 8, 8, R::INFO_NONE);
 $e = new AxisAlignedBB(3.7, 0, 0.2, 4.3, 1.8, 0.8);

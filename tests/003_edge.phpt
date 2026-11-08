@@ -10,7 +10,6 @@ use pocketmine\math\AxisAlignedBB;
 
 function t(callable $f) { try { var_dump($f()); } catch (Throwable $e) { echo get_class($e), ": ", $e->getMessage(), "\n"; } }
 
-// uninitialized properties raise the usual typed property errors
 $r = new ReflectionClass(Vector3::class);
 $u = $r->newInstanceWithoutConstructor();
 t(fn() => $u->add(1, 1, 1));
@@ -19,11 +18,11 @@ $v = new Vector3(1, 2, 3);
 unset($v->y);
 t(fn() => $v->lengthSquared());
 
-// PHP does not allow lazy instances of internal classes or their subclasses
+// internal classes and their subclasses cannot be lazy
 class Sub extends Vector3 {}
 t(fn() => (new ReflectionClass(Sub::class))->newLazyGhost(function (Sub $o) { $o->__construct(3, 4, 0); }));
 
-// typed references are respected when AxisAlignedBB writes in place
+// typed references are respected on in-place writes
 $bb = new AxisAlignedBB(0, 0, 0, 1, 1, 1);
 $ref = &$bb->minX;
 $bb->offset(2, 0, 0);

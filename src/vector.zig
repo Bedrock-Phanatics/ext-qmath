@@ -1,5 +1,3 @@
-//! pocketmine\math\Vector2 and Vector3.
-
 const std = @import("std");
 const rt = @import("rt.zig");
 const phpz = rt.phpz;
@@ -13,8 +11,7 @@ const Ctx = rt.Ctx;
 const Error = rt.Error;
 const ZObj = rt.ZObj;
 
-/// An int|float argument coerced like a user function parameter: weak mode accepts numeric strings
-/// and bools, and null is only accepted when `nullable`.
+/// Weak mode accepts numeric strings and bools, null only when `nullable`.
 fn numArg(ctx: Ctx, n: u32, comptime nullable: bool) Error!?Num {
     const zv = rt.arg(ctx, n);
     switch (rt.ztype(zv)) {
@@ -33,7 +30,6 @@ fn numArg(ctx: Ctx, n: u32, comptime nullable: bool) Error!?Num {
     return error.PhpException;
 }
 
-/// A float argument coerced like a user function parameter declared as `types`.
 fn floatArg(ctx: Ctx, n: u32, comptime types: []const u8) Error!f64 {
     const zv = rt.arg(ctx, n);
     switch (rt.ztype(zv)) {
@@ -100,7 +96,6 @@ pub fn newV2(out: *c.zval, x: f64, y: f64) void {
     rt.setDouble(rt.initSlot(o, v2[1]), y);
 }
 
-/// The object argument `n` if it is an instance of `ce`, with ZPP's error otherwise.
 pub fn argObject(ctx: Ctx, n: u32, ce: rt.Ce) Error!ZObj {
     const zv = rt.arg(ctx, n);
     if (rt.ztype(zv) == rt.IS_OBJECT and rt.instanceOf(zv.value.obj, ce)) return zv.value.obj;
@@ -143,13 +138,12 @@ fn scale(a: NumVec, f: f64) NumVec {
     return .{ Num.f(a[0].toFloat() * f), Num.f(a[1].toFloat() * f), Num.f(a[2].toFloat() * f) };
 }
 
-/// Vector3::getSide() without dispatch.
 fn side(v: NumVec, s: i64, step: i64) NumVec {
     const o: [3]i64 = if (s >= 0 and s < 6) geom.facing.offsets[@intCast(s)] else .{ 0, 0, 0 };
     return add3(v, .{ Num.i(o[0]).mul(Num.i(step)), Num.i(o[1]).mul(Num.i(step)), Num.i(o[2]).mul(Num.i(step)) });
 }
 
-/// Calls getSide() through the object's own method table so overrides such as Position::getSide() apply.
+/// Dispatches through the method table so overrides like Position::getSide() apply.
 fn dispatchSide(o: ZObj, out: *c.zval, s: i64, step: i64) Error!void {
     if (o.ce != v3_ce) {
         const f: ?*c.zend_function = @ptrCast(@alignCast(c.zend_hash_find_ptr(&o.ce.*.function_table, get_side_name)));
@@ -169,7 +163,6 @@ fn dispatchSide(o: ZObj, out: *c.zval, s: i64, step: i64) Error!void {
     newV3(out, side(try readV3(o), s, step));
 }
 
-/// Frameless max($a, $b) for int|float values.
 fn phpMax(a: Num, b: Num) Num {
     return switch (a) {
         .int => |l| switch (b) {
@@ -209,7 +202,6 @@ fn validRoundMode(mode: i64) bool {
     return mode >= c.PHP_ROUND_HALF_UP and mode <= c.PHP_ROUND_AWAY_FROM_ZERO;
 }
 
-/// round($v, $precision, $mode) for int|float.
 fn phpRound(v: Num, places: c_int, mode: i64) f64 {
     return switch (v) {
         .int => |l| if (places >= 0) @floatFromInt(l) else c._php_math_round(@floatFromInt(l), places, @intCast(mode)),
@@ -670,7 +662,7 @@ pub const Vector2 = struct {
         newV2(rt.ret(ctx), v[0] + num.negf(o[0]), v[1] + num.negf(o[1]));
     }
 
-    // Vector2::ceil()/floor() pass (int) results to float parameters, so they come back as floats.
+    // ceil()/floor() pass (int) results to float parameters, so they come back as floats.
     pub fn ceil(ctx: Ctx) Error!void {
         const v = try self2(ctx);
         newV2(rt.ret(ctx), @floatFromInt(num.dvalToLval(@ceil(v[0]))), @floatFromInt(num.dvalToLval(@ceil(v[1]))));

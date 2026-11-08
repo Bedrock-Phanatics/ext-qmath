@@ -1,9 +1,6 @@
 <?php
 
-/*
- * Reference copies of Quark v6 algorithms (LGPL-3.0), reduced to the math they perform.
- * They run on whichever pocketmine\math implementation is loaded.
- */
+// Copies of Quark v6 algorithms (LGPL-3.0) reduced to their math
 
 declare(strict_types=1);
 
@@ -21,7 +18,7 @@ const COLLISION_CUBE = 1;
 const COLLISION_NONE = 2;
 const COLLISION_MAY_OVERFLOW = 3;
 
-/** A small block world: per cell collision info and the block's own boxes, cell relative. */
+/** Cells hold collision info plus the block's own boxes, cell relative */
 final class World{
 	/** @var array<string, array{int, list<array{float,float,float,float,float,float}>}> */
 	public array $cells = [];
@@ -82,7 +79,7 @@ final class World{
 		return $out;
 	}
 
-	/** One region cell at a time, cells outside the world are air like World::getBlockCollisionInfo(). */
+	/** One cell at a time, outside the world is air */
 	public function toRegion() : \qmath\CollisionRegion{
 		$r = new \qmath\CollisionRegion();
 		$r->fillBox($this->minX - 1, $this->minY - 1, $this->minZ - 1, $this->maxX + 1, $this->maxY + 1, $this->maxZ + 1, \qmath\CollisionRegion::INFO_NONE);
@@ -93,7 +90,7 @@ final class World{
 		return $r;
 	}
 
-	/** The integration path: whole chunk sections, as Quark would export them from a SubChunk. */
+	/** Whole chunk sections like Quark exports from a SubChunk */
 	public function toRegionSections() : \qmath\CollisionRegion{
 		$r = new \qmath\CollisionRegion();
 		for($sx = ($this->minX - 1) >> 4; $sx <= ($this->maxX + 1) >> 4; ++$sx){
@@ -331,8 +328,7 @@ function lerp(float $scale, float $a, float $b) : float{
 }
 
 /**
- * Explosion::explodeA() ray march. $resistance maps "x:y:z" to a blast resistance, null for an
- * unreachable cell. Every Block::getAffectedBlocks() includes the block itself.
+ * Explosion::explodeA() ray march. $resistance maps "x:y:z" to blast resistance, null if unreachable
  * @return list<int>
  */
 function explodeA(array $resistance, Vector3 $source, float $radius, int $rays = 16, float $stepLen = 0.3) : array{
@@ -380,7 +376,7 @@ function explodeA(array $resistance, Vector3 $source, float $radius, int $rays =
 	return array_merge(...array_values($affected));
 }
 
-/** Quark's Simplex + Noise with the permutation and offsets supplied directly. */
+/** Quark's Simplex + Noise with permutation and offsets supplied directly */
 final class RefSimplex{
 	private const grad3 = [
 		[1, 1, 0], [-1, 1, 0], [1, -1, 0], [-1, -1, 0],

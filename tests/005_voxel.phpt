@@ -12,16 +12,13 @@ $it = VoxelRayTrace::betweenPoints(new Vector3(0.5, 0.5, 0.5), new Vector3(-1.5,
 var_dump(get_class($it), $it instanceof Iterator);
 foreach ($it as $k => $v) echo $k, ":", $v, "\n";
 var_dump($it->valid(), $it->current(), $it->key());
-// the same instance can be iterated again
 echo count(iterator_to_array($it)), "\n";
-// the first value is the floored start, as ints
 $it->rewind();
 var_dump($it->current() === $it->current(), $it->current()->x);
-// early break leaves the iterator usable
 foreach (VoxelRayTrace::inDirection(new Vector3(0, 70.2, 0), new Vector3(1, 0, 0), 1000.0) as $k => $v) {
     if ($k === 3) { echo $v, "\n"; break; }
 }
-// zero-length rays throw when iterated, like the original generator
+// like the original generator, zero-length rays only throw when iterated
 $zero = VoxelRayTrace::betweenPoints(new Vector3(1, 2, 3), new Vector3(1, 2, 3));
 echo "created\n";
 try { foreach ($zero as $v) {} } catch (InvalidArgumentException $e) { echo $e->getMessage(), "\n"; }

@@ -488,10 +488,7 @@ namespace qmath {
     /** Thrown when a native query needs collision or grid data that was never provided. */
     class CollisionDataException extends \RuntimeException {}
 
-    /**
-     * Sparse block collision data in 16x16x16 sections, aligned with chunk sections. Cells start
-     * unknown, and queries that touch an unknown cell throw instead of treating it as air.
-     */
+    /** Sparse block collision data in 16x16x16 sections. Queries touching an unknown cell throw. */
     final class CollisionRegion
     {
         /** @var int */
@@ -549,7 +546,6 @@ namespace qmath {
 
         public function invalidateSection(int $sectionX, int $sectionY, int $sectionZ): void {}
 
-        /** Drops every section of a chunk column. */
         public function invalidateChunk(int $chunkX, int $chunkZ): void {}
 
         public function invalidateAll(): void {}
@@ -587,9 +583,7 @@ namespace qmath {
 
     final class SweepResult
     {
-        /** Fraction of the movement in [0, 1] at which contact starts. */
         public readonly float $time;
-        /** Facing of the obstacle surface that was hit. */
         public readonly int $face;
         public readonly \pocketmine\math\AxisAlignedBB $box;
         public readonly int|string $key;
@@ -604,7 +598,6 @@ namespace qmath {
         /** Entity::move() collision resolution: Y, X, Z clipping with step-height retry. */
         public static function move(CollisionRegion $region, \pocketmine\math\AxisAlignedBB $bb, float $dx, float $dy, float $dz, float $stepHeight = 0.0, bool $onGround = false): MoveResult {}
 
-        /** Continuous time-of-impact test against the region's collision boxes. */
         public static function sweep(CollisionRegion $region, \pocketmine\math\AxisAlignedBB $bb, float $dx, float $dy, float $dz): ?SweepResult {}
 
         /** The smallest box covering every query move() can make, for CollisionRegion::missingSections(). */
@@ -754,10 +747,7 @@ namespace qmath {
     {
         private function __construct() {}
 
-        /**
-         * Entity::tryChangeMovement() followed by the MOTION_THRESHOLD clamp from Entity::onUpdate().
-         * $groundFriction is the block friction factor, or 1.0 when airborne.
-         */
+        /** Entity::tryChangeMovement() then the MOTION_THRESHOLD clamp. $groundFriction is 1.0 when airborne. */
         public static function motionStep(\pocketmine\math\Vector3 $motion, float $drag, float $gravity, bool $gravityEnabled = true, bool $dragBeforeGravity = false, float $groundFriction = 1.0, float $threshold = 0.00001): \pocketmine\math\Vector3 {}
 
         /** Living::knockBack() motion without the resistance roll, null when the direction is zero. */

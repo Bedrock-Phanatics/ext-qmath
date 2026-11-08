@@ -15,7 +15,6 @@ Zig 0.17.1 with [phpz](https://github.com/happystraw/phpz) for PHP 8.4.
   - entity overlap filters and motion formulas
 
 Every port is checked against the PHP original by differential tests, and results match bit for bit.
-`docs/QUARK_INTEGRATION.md` describes how to adopt each part in Quark.
 
 ## Building
 
@@ -74,7 +73,7 @@ cases. On the debug PHP build the PHPT suite also passes Zend's memory leak chec
 
 ## Benchmarks
 
-`php bench/run.php --ext=...`, timings in µs per operation. "Native classes" runs Quark's PHP code unchanged on
+`php tests/bench/run.php --ext=...`, timings in µs per operation. "Native classes" runs Quark's PHP code unchanged on
 the extension's `pocketmine\math` classes. "Native" uses the qmath API. Measured on a Ryzen 5 5500 with
 Windows 11, PHP 8.4.14 ZTS CLI without opcache, and a ReleaseFast build. Runs on this machine vary by up to
 about 30%.

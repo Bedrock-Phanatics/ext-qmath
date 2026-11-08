@@ -10,3 +10,4 @@ tests/**/*.out
 tests/**/*.php.tmp
 tests/**/*.sh
 !tests/**/*.phpt
+docs/

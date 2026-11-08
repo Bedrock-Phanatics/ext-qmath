@@ -1,5 +1,4 @@
-//! pocketmine\math\Matrix. Quark does not use it; it is ported for completeness on top of the same
-//! private PHP array so ArrayAccess keeps working.
+//! Unused by Quark, ported on the same private PHP array so ArrayAccess keeps working.
 
 const std = @import("std");
 const rt = @import("rt.zig");
@@ -28,7 +27,7 @@ fn dims(o: ZObj) Error!Dims {
     return .{ .rows = try rt.readLong(o, p_rows), .cols = try rt.readLong(o, p_cols) };
 }
 
-/// The private $matrix array, separated so it can be written in place.
+/// Separated so it can be written in place.
 fn writable(o: ZObj) Error!*c.zend_array {
     const slot = rt.deref(&rt.props(o)[p_matrix.slot]);
     if (rt.ztype(slot) != rt.IS_ARRAY) return rt.typeError("Matrix::$matrix must be an array", .{});
@@ -53,7 +52,7 @@ fn undefinedKey(k: i64) void {
     c.zend_error(c.E_WARNING, "Undefined array key " ++ "%lld", @as(c_longlong, k));
 }
 
-/// `$this->matrix[$r][$c]` with PHP's warnings, null when missing.
+/// Warns like PHP, null when missing.
 fn element(arr: *c.zend_array, r: i64, col: i64) ?*c.zval {
     const row_raw = c.zend_hash_index_find(arr, @bitCast(r)) orelse {
         undefinedKey(r);
@@ -72,7 +71,6 @@ fn element(arr: *c.zend_array, r: i64, col: i64) ?*c.zval {
     return rt.deref(v);
 }
 
-/// `$this->matrix[$r][$c] = $value`
 fn setRaw(arr: *c.zend_array, r: i64, col: i64, value: *c.zval) Error!void {
     var row: *c.zval = undefined;
     if (c.zend_hash_index_find(arr, @bitCast(r))) |found| {
@@ -94,7 +92,7 @@ fn setRaw(arr: *c.zend_array, r: i64, col: i64, value: *c.zval) Error!void {
     store(row.value.arr, col, value);
 }
 
-/// `$arr[$k] = $v`. The old value is released last because its destructor may modify the array.
+/// The old value is released last, its destructor may modify the array.
 fn store(arr: *c.zend_array, k: i64, v: *c.zval) void {
     const slot: *c.zval = c.zend_hash_index_lookup(arr, @bitCast(k));
     var old = slot.*;
@@ -153,7 +151,6 @@ fn nullZval() c.zval {
     return z;
 }
 
-/// `new Matrix($rows, $cols)` into `out`.
 fn construct(out: *c.zval, rows: i64, cols: i64) Error!ZObj {
     const o = rt.newObject(out, ce);
     try init(o, rows, cols, null);
@@ -304,7 +301,7 @@ pub const Matrix = struct {
         try sameShape(d, try dims(other));
         const out = rt.ret(ctx);
         const result = try construct(out, d.rows, d.cols);
-        // Warnings and string conversions can run PHP code, pinning keeps this array valid.
+        // Warnings can run PHP code, pinning keeps the array valid.
         const arr = try readable(o);
         rt.pinArray(arr);
         defer rt.unpinArray(arr);
@@ -328,7 +325,6 @@ pub const Matrix = struct {
         const d = try dims(o);
         if (other) |m| try sameShape(d, try dims(m));
         const result = try cloneThis(ctx);
-        // Warnings and string conversions can run PHP code, pinning keeps this array valid.
         const arr = try readable(o);
         rt.pinArray(arr);
         defer rt.unpinArray(arr);
@@ -366,7 +362,6 @@ pub const Matrix = struct {
         const o = rt.this(ctx);
         const d = try dims(o);
         const result = try construct(rt.ret(ctx), d.cols, d.rows);
-        // Warnings and string conversions can run PHP code, pinning keeps this array valid.
         const arr = try readable(o);
         rt.pinArray(arr);
         defer rt.unpinArray(arr);
@@ -389,7 +384,6 @@ pub const Matrix = struct {
         const od = try dims(other);
         if (d.cols != od.rows) return rt.invalidArgument("Expected a matrix with {d} rows", .{d.cols});
         const result = try construct(rt.ret(ctx), d.rows, od.cols);
-        // Warnings and string conversions can run PHP code, pinning keeps this array valid.
         const arr = try readable(o);
         rt.pinArray(arr);
         defer rt.unpinArray(arr);
@@ -421,7 +415,6 @@ pub const Matrix = struct {
         const o = rt.this(ctx);
         const d = try dims(o);
         if (d.rows != d.cols) return rt.throwCe(rt.phpCe("spl_ce_LogicException"), "Cannot calculate determinant of a non-square matrix");
-        // Warnings and string conversions can run PHP code, pinning keeps this array valid.
         const arr = try readable(o);
         rt.pinArray(arr);
         defer rt.unpinArray(arr);
@@ -488,7 +481,6 @@ pub const Matrix = struct {
     pub fn __toString(ctx: Ctx) Error!void {
         const o = rt.this(ctx);
         const d = try dims(o);
-        // Warnings and string conversions can run PHP code, pinning keeps this array valid.
         const arr = try readable(o);
         rt.pinArray(arr);
         defer rt.unpinArray(arr);
@@ -518,7 +510,6 @@ pub const Matrix = struct {
             buf.appendSlice(rt.allocator, rt.zstr(joined.value.str)) catch return rt.oom();
             buf.append(rt.allocator, ';') catch return rt.oom();
         }
-        // substr($s, 0, -1) drops the final row separator
         const body = buf.items;
         const trimmed = if (d.rows > 0) body[0 .. body.len - 1] else body;
         rt.retString(rt.ret(ctx), &.{ trimmed, ")" });

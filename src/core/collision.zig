@@ -1,8 +1,5 @@
 //! Block collision data and the Entity::move() collision solver.
-//!
-//! The region is a sparse map of 16x16x16 sections, matching chunk sections, so it can hold collision
-//! data for a whole world and be updated incrementally. Cells without data are unknown, and queries that
-//! touch them fail instead of treating them as air.
+//! Cells without data are unknown, and queries touching them fail instead of treating them as air.
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
@@ -13,7 +10,6 @@ const Vec = geom.Vec;
 
 const pow = @import("libm.zig").powFn;
 
-/// RuntimeBlockStateRegistry collision info values. `unknown` marks cells with no data.
 pub const Info = enum(u8) {
     custom = 0,
     cube = 1,
@@ -35,25 +31,20 @@ pub const Info = enum(u8) {
 pub const max_boxes_per_cell: usize = 64;
 const max_boxes_per_section: usize = std.math.maxInt(u16);
 const max_query_boxes: usize = 1 << 20;
-/// Bounds that keep section coordinates packable: |x|, |z| < 2^25 and |y| < 2^23.
+/// Keeps section coordinates packable into the u64 key.
 const horizontal_limit: i64 = 1 << 25;
 const vertical_limit: i64 = 1 << 23;
-/// A query may not span more sections than this.
 pub const max_query_sections: usize = 4096;
 pub const section_cells = 4096;
 
 pub const Error = error{
     OutOfMemory,
-    /// A coordinate is outside the representable world range.
     OutOfRange,
-    /// A query needed a cell whose data was never provided or was invalidated.
     UnknownCell,
     InvalidBox,
     InvalidInfo,
     TooManyBoxes,
-    /// The region holds its maximum number of sections.
     RegionFull,
-    /// A query or fill is too large.
     RegionTooLarge,
     Frozen,
 };
@@ -83,7 +74,6 @@ const Section = struct {
         return .{ .info = self.uniform orelse .unknown };
     }
 
-    /// Switches a uniform section to per-cell storage.
     fn expand(self: *Section, allocator: Allocator) Error!*[section_cells]Cell {
         if (self.cells) |cells| return cells;
         const cells = try allocator.create([section_cells]Cell);
@@ -93,7 +83,7 @@ const Section = struct {
         return cells;
     }
 
-    /// Live box ranges never overlap but are not in cell order, so they move down in storage order.
+    /// Live ranges are not in cell order, so they move down in storage order.
     fn compact(self: *Section) void {
         const cells = self.cells orelse return;
         var order: [section_cells]u16 = undefined;
@@ -143,7 +133,7 @@ pub fn inRange(x: i64, y: i64, z: i64) bool {
     return x > -horizontal_limit and x < horizontal_limit and z > -horizontal_limit and z < horizontal_limit and y > -vertical_limit and y < vertical_limit;
 }
 
-/// Index of a cell inside its section, in the x, z, y order chunk sections use.
+/// Chunk section order: x, z, y.
 pub fn localIndex(lx: u4, ly: u4, lz: u4) u12 {
     return (@as(u12, lx) << 8) | (@as(u12, lz) << 4) | ly;
 }
@@ -158,7 +148,7 @@ fn locate(x: i64, y: i64, z: i64) ?Loc {
     };
 }
 
-/// One-entry section cache for queries, which visit cells of the same section in runs.
+/// One-entry section cache, queries visit cells in runs.
 pub const Lookup = struct {
     key: u64 = std.math.maxInt(u64),
     section: ?*Section = null,
@@ -239,7 +229,7 @@ pub const Region = struct {
         return (try self.cellAt(lk, x, y, z)).cell.info;
     }
 
-    /// Block::getCollisionBoxes() for the cell. `scratch` holds the synthesized box of a full cube.
+    /// `scratch` backs the synthesized box of a full cube.
     pub fn ownBoxes(self: *const Region, lk: *Lookup, x: i64, y: i64, z: i64, scratch: *Box) Error![]const Box {
         const at = try self.cellAt(lk, x, y, z);
         return switch (at.cell.info) {
@@ -308,8 +298,7 @@ pub const Region = struct {
         if (s.boxes.items.len > 256 and s.boxes.items.len > s.live * 2) s.compact();
     }
 
-    /// Replaces a whole section. `infos` is in localIndex() order; `cell_boxes` lists the boxes of
-    /// custom and may-overflow cells.
+    /// `infos` is in localIndex() order.
     pub fn setSection(self: *Region, sx: i32, sy: i32, sz: i32, infos: []const Info, cell_boxes: []const CellBoxes) Error!void {
         if (infos.len != section_cells) return error.InvalidInfo;
         if (!inRange(@as(i64, sx) * 16, @as(i64, sy) * 16, @as(i64, sz) * 16) or !inRange(@as(i64, sx) * 16 + 15, @as(i64, sy) * 16 + 15, @as(i64, sz) * 16 + 15)) return error.OutOfRange;
@@ -350,7 +339,7 @@ pub const Region = struct {
         self.version +%= 1;
     }
 
-    /// Marks every cell of a box as `info`, which must be none or cube.
+    /// `info` must be none or cube.
     pub fn fillBox(self: *Region, min: [3]i64, max: [3]i64, info: Info) Error!void {
         if (info != .none and info != .cube) return error.InvalidInfo;
         if (!inRange(min[0], min[1], min[2]) or !inRange(max[0], max[1], max[2])) return error.OutOfRange;
@@ -422,7 +411,7 @@ pub const Region = struct {
         try self.forget(x, y, z);
     }
 
-    /// The block and its six neighbours, like World's collision cache invalidation.
+    /// Also drops the six neighbours, like World's cache invalidation.
     pub fn invalidateBlock(self: *Region, x: i64, y: i64, z: i64) Error!void {
         try self.mutate();
         try self.forget(x, y, z);
@@ -440,7 +429,6 @@ pub const Region = struct {
         if (self.sections.fetchRemove(sectionKey(sx, sy, sz))) |kv| kv.value.free(self.allocator);
     }
 
-    /// Drops every section of a chunk column, like World dropping its collision cache on unload.
     pub fn invalidateChunk(self: *Region, chunk_x: i32, chunk_z: i32) Error!void {
         try self.mutate();
         var doomed: std.ArrayList(u64) = .empty;
@@ -481,7 +469,7 @@ pub const Region = struct {
         return r;
     }
 
-    /// Sections a query could read that are missing or have unknown cells, as flat x, y, z triples.
+    /// Appends flat x, y, z triples.
     pub fn missingSections(self: *const Region, query: Box, out: *std.ArrayList(i64), allocator: Allocator) Error!void {
         const r = try cellRange(query);
         var sx = (r[0][0] - 1) >> 4;
@@ -497,7 +485,7 @@ pub const Region = struct {
         }
     }
 
-    /// World::getBlockCollisionBoxesForCell(): the cell's boxes plus overflow from neighbouring cells.
+    /// Own boxes plus overflow from neighbouring cells.
     fn cellCollisionBoxes(self: *const Region, lk: *Lookup, nk: *Lookup, x: i64, y: i64, z: i64, sink: anytype) !void {
         var scratch: Box = undefined;
         const info = try self.cellInfo(lk, x, y, z);
@@ -515,7 +503,7 @@ pub const Region = struct {
         }
     }
 
-    /// World::getBlockCollisionBoxes(): same boxes in the same order, duplicates included.
+    /// Same boxes in the same order as PHP, duplicates included.
     pub fn collisionBoxes(self: *const Region, query: Box, sink: anytype) !void {
         const r = try cellRange(query);
         var lk = Lookup{};
@@ -572,7 +560,6 @@ const AnySink = struct {
     }
 };
 
-/// Collects boxes into an allocator-backed list.
 pub const ListSink = struct {
     list: *std.ArrayList(Box),
     allocator: Allocator,
@@ -588,7 +575,7 @@ pub fn collectBoxes(region: *const Region, allocator: Allocator, query: Box, lis
     try region.collisionBoxes(query, &sink);
 }
 
-/// The smallest box covering every query move() may make, for prefetching sections.
+/// Covers every query move() may make, for prefetching.
 pub fn queryBox(bb: Box, wanted: Vec, step_height: f64) Box {
     var q = bb.addCoord(wanted);
     if (step_height > 0) q = q.union_(bb.addCoord(.{ wanted[0], step_height, wanted[2] }));
@@ -617,7 +604,7 @@ fn along(comptime axis: usize, d: f64) Vec {
     return v;
 }
 
-/// Collision part of Entity::move() for an entity that is not in keepMovement mode.
+/// Entity::move() without keepMovement.
 pub fn move(region: *const Region, allocator: Allocator, bb: Box, wanted: Vec, step_height: f64, on_ground: bool) Error!MoveResult {
     if (!bb.isValid()) return error.InvalidBox;
     var list: std.ArrayList(Box) = .empty;

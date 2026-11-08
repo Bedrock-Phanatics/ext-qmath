@@ -1,5 +1,3 @@
-//! VoxelRayTrace, qmath\VoxelRayIterator, VoxelHit and Raycast.
-
 const std = @import("std");
 const rt = @import("rt.zig");
 const phpz = rt.phpz;
@@ -53,7 +51,7 @@ pub const Iter = struct {
     fn restart(self: *Iter) Error!void {
         self.drop();
         if (self.state == .zero_length) {
-            // Like a generator that threw, later traversals yield nothing.
+            // Like a generator that threw, later traversals yield nothing
             self.state = .done;
             return rt.invalidArgument(voxel.zero_length_message, .{});
         }

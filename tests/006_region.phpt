@@ -36,7 +36,6 @@ var_dump($r->getCellInfo(16, 0, 0), $r->getCellInfo(19, 5, 4), (string) $r->getC
 $r->setSection(2, 0, 0, str_repeat(chr(CollisionRegion::INFO_CUBE), 4096));
 var_dump($r->getCellInfo(40, 9, 3), $r->getSectionCount());
 
-// validation
 t(fn() => $r->setCell(1 << 40, 0, 0, CollisionRegion::INFO_NONE));
 t(fn() => $r->setCell(0, 0, 0, 7));
 t(fn() => $r->setCell(0, 0, 0, CollisionRegion::INFO_CUBE, [AxisAlignedBB::one()]));
@@ -59,7 +58,6 @@ $small->setCell(0, 0, 0, CollisionRegion::INFO_NONE);
 t(fn() => $small->setCell(16, 0, 0, CollisionRegion::INFO_NONE));
 t(fn() => (new ReflectionClass(CollisionRegion::class))->newInstanceWithoutConstructor());
 
-// invalidation forgets the block and its neighbours
 $r->invalidateBlock(0, 1, 0);
 var_dump($r->isKnown(0, 1, 0), $r->isKnown(0, 0, 0), $r->isKnown(1, 1, 0), $r->isKnown(1, 0, 0));
 t(fn() => $r->getCollisionBoxes(new AxisAlignedBB(0.2, 0.2, 0.2, 0.8, 0.8, 0.8)));
@@ -72,7 +70,6 @@ var_dump($r->isKnown(16, 0, 0));
 $r->invalidateAll();
 var_dump($r->getSectionCount());
 
-// snapshots are frozen copies, clones are independent
 $r->fillBox(-16, -16, -16, 15, 15, 15, CollisionRegion::INFO_CUBE);
 $s = $r->snapshot();
 var_dump($s->isFrozen(), $r->isFrozen());

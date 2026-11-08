@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-// gen_stub.php cannot emit non-empty array constants, so they stay in the stub for IDEs
-// and are registered natively instead. This feeds gen_stub a copy without them.
+// gen_stub.php can't emit non-empty array constants, so they're registered natively and
+// stripped from the copy it gets.
 
 $root = dirname(__DIR__);
 $stub = file_get_contents("$root/qmath.stub.php");
@@ -24,7 +24,7 @@ passthru(escapeshellarg(PHP_BINARY) . " " . escapeshellarg("$root/build/gen_stub
 if ($status !== 0) {
     exit($status);
 }
-// Record the real stub's hash so arginfo checks compare against qmath.stub.php.
+// Hash of the real stub, not the stripped copy.
 $arginfo = file_get_contents("$root/build/qmath_arginfo.h");
 $hash = sha1(str_replace("\r\n", "\n", $stub));
 $arginfo = preg_replace('~\* Stub hash: [0-9a-f]+ \*/~', "* Stub hash: $hash */", $arginfo, 1);

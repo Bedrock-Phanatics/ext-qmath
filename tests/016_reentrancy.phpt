@@ -27,7 +27,6 @@ t(fn() => (string) $h->transpose());
 t(fn() => $h->determinant());
 restore_error_handler();
 
-// subclasses can be constructed and keep the private state
 class SubMatrix extends Matrix {}
 $s = new SubMatrix(2, 2, [[1, 2], [3, 4]]);
 var_dump($s->getRows(), $s->determinant(), (string) $s);
@@ -58,7 +57,6 @@ for ($i = 0; $i < 3; ++$i) {
     echo qmath\Collision::sweepBoxes(new AxisAlignedBB(-0.3, 0, -0.3, 0.3, 1.8, 0.3), 0, 0, 100, $boxes)->key, "\n";
 }
 
-// subclasses with property hooks are read through the hooks
 class HookedV2 extends Vector2 {
     public float $x { get => $this->x * 2; }
 }

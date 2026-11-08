@@ -1,5 +1,4 @@
-//! VoxelRayTrace::betweenPoints() as a resumable iterator.
-//! The first voxel is floor(start); boundary ties are crossed in Z, Y, X order like QuarkMath.
+//! Resumable VoxelRayTrace::betweenPoints(). Boundary ties cross Z, then Y, then X like QuarkMath.
 
 const std = @import("std");
 const num = @import("num.zig");
@@ -22,7 +21,6 @@ pub const Ray = struct {
         var block: NumVec = undefined;
         inline for (0..3) |a| block[a] = Num.i(num.floorInt(start[a]));
 
-        // $end->subtractVector($start)->normalize()
         var diff: NumVec = undefined;
         inline for (0..3) |a| diff[a] = end[a].add(start[a].neg());
         const len_sq = diff[0].mul(diff[0]).add(diff[1].mul(diff[1])).add(diff[2].mul(diff[2]));
@@ -32,7 +30,6 @@ pub const Ray = struct {
         inline for (0..3) |a| dir[a] = diff[a].toFloat() / len;
         if (dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2] <= 0) return error.ZeroLength;
 
-        // $start->distance($end)
         var dist = Num.i(0);
         inline for (0..3) |a| {
             const d = start[a].sub(end[a]);
@@ -54,7 +51,7 @@ pub const Ray = struct {
         return ray;
     }
 
-    /// Moves to the next voxel. Returns false once the ray has passed its end, leaving `block` unchanged.
+    /// Returns false once past the end, leaving `block` unchanged.
     pub fn advance(self: *Ray) bool {
         if (self.done) return false;
         const axis: usize = if (self.t_max[0] < self.t_max[1] and self.t_max[0] < self.t_max[2])
@@ -72,7 +69,7 @@ pub const Ray = struct {
         return true;
     }
 
-    /// Integer cell coordinates, or null if a coordinate overflowed to float.
+    /// Null if a coordinate overflowed to float.
     pub fn cell(self: *const Ray) ?[3]i64 {
         var r: [3]i64 = undefined;
         inline for (0..3) |a| {

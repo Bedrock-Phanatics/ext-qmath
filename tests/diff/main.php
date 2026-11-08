@@ -1,7 +1,7 @@
 <?php
 
 // Usage: php main.php ref|ext <seed> <scale>
-// ref loads QuarkMath (QUARKMATH_SRC) and pocketmine/color (PMCOLOR_SRC); ext needs the qmath extension.
+// ref needs QUARKMATH_SRC and PMCOLOR_SRC, ext needs the qmath extension
 
 declare(strict_types=1);
 

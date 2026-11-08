@@ -1,5 +1,3 @@
-//! qmath\ResistanceGrid and ExplosionMath.
-
 const std = @import("std");
 const rt = @import("rt.zig");
 const phpz = rt.phpz;
@@ -76,7 +74,7 @@ pub const Grid = struct {
     }
 };
 
-/// mt_rand($min, $max), sharing PHP's generator state.
+/// Shares PHP's mt_rand state.
 const PhpRng = struct {
     pub fn range(_: *PhpRng, min: i64, max: i64) i64 {
         return c.php_mt_rand_common(min, max);

@@ -1,5 +1,3 @@
-//! pocketmine/color channel math plus interpolation, blending and HSV/HSL conversion.
-
 const std = @import("std");
 
 pub const Rgba = struct {
@@ -8,7 +6,7 @@ pub const Rgba = struct {
     b: u8,
     a: u8,
 
-    /// The Color constructor masks every channel with 0xff.
+    /// Masks every channel with 0xff like the PHP constructor.
     pub fn init(r: i64, g: i64, b: i64, a: i64) Rgba {
         return .{ .r = mask(r), .g = mask(g), .b = mask(b), .a = mask(a) };
     }
@@ -52,7 +50,7 @@ pub const Rgba = struct {
         return @intFromFloat(@round(fa + (fb - fa) * t));
     }
 
-    /// Source-over compositing of `over` on top of `self`, straight (non-premultiplied) alpha.
+    /// Straight (non-premultiplied) alpha.
     pub fn blend(self: Rgba, over: Rgba) Rgba {
         const sa = @as(f64, @floatFromInt(over.a)) / 255.0;
         const da = @as(f64, @floatFromInt(self.a)) / 255.0;

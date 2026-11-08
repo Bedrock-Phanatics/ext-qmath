@@ -1,5 +1,3 @@
-//! qmath\CollisionRegion, Collision, MoveResult, SweepResult and CollisionDataException.
-
 const std = @import("std");
 const rt = @import("rt.zig");
 const phpz = rt.phpz;
@@ -29,7 +27,6 @@ pub fn startup() void {
     sr = .{ rt.Prop.resolve(sweep_ce, "time"), rt.Prop.resolve(sweep_ce, "face"), rt.Prop.resolve(sweep_ce, "box"), rt.Prop.resolve(sweep_ce, "key") };
 }
 
-/// Converts a native error into the matching PHP exception.
 pub fn fail(err: anyerror) Error {
     return switch (err) {
         error.PhpException, error.UnwindExit => @errorCast(err),
@@ -284,7 +281,6 @@ pub fn validBox(b: Box) Error!Box {
     return b;
 }
 
-/// Reads a PHP list of AxisAlignedBB into `buf`.
 fn readBoxList(arr: *c.zend_array, buf: []Box, arg_num: u32) Error!usize {
     const count = arr.nNumOfElements;
     if (count > buf.len) return fail(error.TooManyBoxes);
@@ -303,7 +299,7 @@ fn readBoxList(arr: *c.zend_array, buf: []Box, arg_num: u32) Error!usize {
     return n;
 }
 
-/// Parses six little-endian doubles per box.
+/// Six little-endian doubles per box.
 pub fn readPackedBoxes(bytes: []const u8, buf: []Box) Error!usize {
     if (bytes.len % 48 != 0) return rt.valueError("Packed boxes must be a multiple of 48 bytes", .{});
     const n = bytes.len / 48;
@@ -333,7 +329,6 @@ fn retBoxes(out: *c.zval, boxes: []const Box) void {
     }
 }
 
-/// The CollisionRegion argument `n`, with ZPP's error for other types.
 pub fn argRegion(ctx: Ctx, n: u32) Error!*collision.Region {
     const o = try vector.argObject(ctx, n, rt.cePtr(CollisionRegionClass.entry));
     const w = CollisionRegionClass.fromObject(phpz.zend.Object.from(o)) catch return rt.typeError("Invalid CollisionRegion", .{});

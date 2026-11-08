@@ -1,4 +1,4 @@
-//! qmath\Simplex, a native twin of Quark's world generator Simplex noise.
+//! Matches Quark's world generator Simplex noise.
 
 const std = @import("std");
 const rt = @import("rt.zig");
@@ -166,7 +166,7 @@ fn appendNull(arr: *c.zval) void {
     _ = c.zend_hash_next_index_insert(arr.value.arr, &zv);
 }
 
-/// 256 permutation entries (mirrored into 512) or all 512, as an int list or a byte string.
+/// Takes 256 entries (mirrored to 512) or all 512, as an int list or byte string.
 fn readPermutation(ctx: Ctx, perm: *[512]u8) Error!void {
     const zv = rt.arg(ctx, 1);
     switch (rt.ztype(zv)) {

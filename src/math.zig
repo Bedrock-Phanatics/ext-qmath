@@ -1,5 +1,3 @@
-//! pocketmine\math\Axis, Facing, Math and VectorMath.
-
 const std = @import("std");
 const rt = @import("rt.zig");
 const phpz = rt.phpz;
@@ -34,7 +32,7 @@ pub const Axis = struct {
 
 const F = core.geom.facing;
 
-/// Facing::CLOCKWISE indexed by axis then facing, -1 where rotation is impossible.
+/// -1 where rotation is impossible.
 const clockwise = [3][6]i64{
     .{ -1, -1, F.east, F.west, F.north, F.south },
     .{ F.west, F.east, -1, -1, F.up, F.down },
@@ -93,8 +91,7 @@ pub const Facing = struct {
 
 pub const rotateFacing = rotate;
 
-/// The `$i - 1` / `$i + 1` result of floorFloat()/ceilFloat(); PHP would overflow to float and fail
-/// the int return type.
+/// PHP would overflow to float and fail the int return type.
 fn stepInt(ctx: Ctx, i: i64, delta: i64, comptime name: []const u8) Error!void {
     const r = @addWithOverflow(i, delta);
     if (r[1] != 0) return rt.typeError("pocketmine\\math\\Math::" ++ name ++ "(): Return value must be of type int, float returned", .{});
@@ -201,7 +198,7 @@ fn longList(values: []const i64) *c.zend_array {
     return ht;
 }
 
-/// Facing::ALL, HORIZONTAL and OFFSET, which gen_stub cannot emit.
+/// gen_stub cannot emit these.
 pub fn startup() void {
     const ce = rt.cePtr(FacingClass.entry);
     const all = longList(&.{ 0, 1, 2, 3, 4, 5 });

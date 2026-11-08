@@ -1,5 +1,4 @@
-//! PHP number semantics for values typed `int|float`.
-//! Integer arithmetic overflows to float exactly like the Zend VM so ported code keeps its types.
+//! Int arithmetic overflows to float like the Zend VM so ported code keeps its types.
 
 const std = @import("std");
 
@@ -49,7 +48,7 @@ pub const Num = union(enum) {
         return .{ .float = a.toFloat() * b.toFloat() };
     }
 
-    /// Unary minus, which PHP compiles to a multiplication by -1.
+    /// PHP compiles unary minus to a multiplication by -1.
     pub fn neg(a: Num) Num {
         return switch (a) {
             .int => mul(a, .{ .int = -1 }),
@@ -57,7 +56,6 @@ pub const Num = union(enum) {
         };
     }
 
-    /// abs() for int|float.
     pub fn abs(a: Num) Num {
         return switch (a) {
             .int => |v| if (v == std.math.minInt(i64)) .{ .float = -@as(f64, @floatFromInt(v)) } else .{ .int = if (v < 0) -v else v },
@@ -73,15 +71,14 @@ pub const Num = union(enum) {
     }
 };
 
-// Loaded at run time so the optimizer cannot turn `x * -1` into a sign flip, which differs from PHP for NaN.
+// Loaded at run time so the optimizer can't turn `x * -1` into a sign flip, which differs for NaN.
 var minus_one: f64 = -1;
 
-/// `-$x` for a float, which PHP evaluates as `$x * -1`.
 pub inline fn negf(x: f64) f64 {
     return x * @as(*volatile f64, &minus_one).*;
 }
 
-/// zend_dval_to_lval(): the (int) cast of a float, modular for out of range values.
+/// The (int) cast of a float, modular when out of range.
 pub fn dvalToLval(d: f64) i64 {
     if (!std.math.isFinite(d)) return 0;
     if (!fitsLong(d)) {
@@ -94,12 +91,10 @@ pub fn dvalToLval(d: f64) i64 {
     return @intFromFloat(d);
 }
 
-/// ZEND_DOUBLE_FITS_LONG()
 pub fn fitsLong(d: f64) bool {
     return !(d >= 9223372036854775808.0 or d < -9223372036854775808.0);
 }
 
-/// (int) floor($v) as used by QuarkMath for int|float values.
 pub fn floorInt(v: Num) i64 {
     return dvalToLval(@floor(v.toFloat()));
 }
@@ -108,7 +103,7 @@ pub fn ceilInt(v: Num) i64 {
     return dvalToLval(@ceil(v.toFloat()));
 }
 
-/// The `<=>` result of a float against 0, NaN compares greater like ZEND_THREEWAY_COMPARE.
+/// `<=>` against 0, NaN compares greater like PHP.
 pub fn spaceshipZero(v: f64) i64 {
     if (v == 0) return 0;
     if (v < 0) return -1;

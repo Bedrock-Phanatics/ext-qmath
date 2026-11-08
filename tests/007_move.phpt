@@ -11,7 +11,7 @@ use qmath\CollisionRegion as R;
 
 function t(callable $f) { try { var_dump($f()); } catch (Throwable $e) { echo get_class($e), ": ", $e->getMessage(), "\n"; } }
 
-/** Flat floor at y = 63 around the chunk corner at 0, 0, with a few shapes on top. */
+/** Flat floor at y = 63 with a few shapes on top */
 function world() : R {
     $r = new R();
     $r->fillBox(-20, 40, -20, 20, 72, 20, R::INFO_NONE);
@@ -50,7 +50,6 @@ show("negative", Collision::move($r, player(-15.5, 64.2, -15.5), -0.3, -0.4, -0.
 show("diagonal", Collision::move($r, player(0.5, 64, 0.5), 3.0, -0.08, 0.2, 0.6, true));
 show("airborne", Collision::move($r, player(0.5, 66, 0.5), 0.2, 0.3, 0.2));
 
-// inputs are validated
 t(fn() => Collision::move($r, player(0.5, 64, 0.5), NAN, 0, 0));
 t(fn() => Collision::move($r, player(0.5, 64, 0.5), 0, 0, 0, INF));
 t(fn() => Collision::move($r, player(0.5, 64, 0.5), 0, -100, 0));

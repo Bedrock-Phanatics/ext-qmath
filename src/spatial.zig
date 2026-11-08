@@ -1,5 +1,3 @@
-//! qmath\Spatial and Physics.
-
 const std = @import("std");
 const rt = @import("rt.zig");
 const phpz = rt.phpz;

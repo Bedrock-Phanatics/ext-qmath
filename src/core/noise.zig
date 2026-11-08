@@ -1,4 +1,4 @@
-//! Quark's Simplex and Noise sampling, operation for operation so generated terrain is unchanged.
+//! Operation for operation like Quark so generated terrain is unchanged.
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
@@ -18,7 +18,7 @@ const G22: f64 = G2 * 2.0 - 1.0;
 const F3: f64 = 1.0 / 3.0;
 const G3: f64 = 1.0 / 6.0;
 
-/// Quark samples 16x128x16 per chunk, this leaves ample room while bounding one native call.
+/// Quark samples 16x128x16 per chunk, this bounds one native call.
 pub const max_samples: usize = 1 << 20;
 
 pub const Error = error{ OutOfMemory, InvalidArgument };
@@ -30,7 +30,6 @@ pub const Simplex = struct {
     persistence: f64,
     expansion: f64,
 
-    /// `(int)` cast followed by `& 255`.
     fn hashIndex(v: f64) struct { i: i64, h: usize } {
         const i = num.dvalToLval(v);
         return .{ .i = i, .h = @intCast(@as(u64, @bitCast(i)) & 255) };
@@ -193,7 +192,7 @@ pub const Simplex = struct {
     }
 };
 
-/// $x + $xx where both are ints, as the float noise3D() receives.
+/// Int addition first, then to float, like PHP.
 fn coord(base: i64, off: i64) f64 {
     return num.Num.i(base).add(num.Num.i(off)).toFloat();
 }
@@ -206,7 +205,7 @@ pub fn validateSampling(size: i64, rate: i64) Error!void {
     if (size < 0 or size >= max_samples or rate <= 0 or @rem(size, rate) != 0) return error.InvalidArgument;
 }
 
-/// Noise::getFastNoise1D(). `out` has xSize + 1 entries.
+/// `out` has xSize + 1 entries.
 pub fn fastNoise1D(s: *const Simplex, out: []f64, x_size: i64, rate: i64, x: i64, y: i64, z: i64) void {
     var xx: i64 = 0;
     while (xx <= x_size) : (xx += rate) out[@intCast(xx)] = s.noise3D(coord(xx, x), @floatFromInt(y), @floatFromInt(z), false);
@@ -220,7 +219,7 @@ pub fn fastNoise1D(s: *const Simplex, out: []f64, x_size: i64, rate: i64, x: i64
     }
 }
 
-/// Noise::getFastNoise2D(). `out` is (xSize + 1) * (zSize + 1) indexed [x][z]; `set` marks filled entries.
+/// `out` is [x][z] with (xSize + 1) * (zSize + 1) entries, `set` marks filled ones.
 pub fn fastNoise2D(s: *const Simplex, out: []f64, set: []bool, x_size: i64, z_size: i64, rate: i64, x: i64, y: i64, z: i64) void {
     const zs: usize = @intCast(z_size + 1);
     @memset(set, false);
@@ -274,14 +273,12 @@ pub const Sampling3D = struct {
         return @intCast((self.size[0] + 1) * (self.size[1] + 1) * (self.size[2] + 1));
     }
 
-    /// Index of [x][z][y].
     pub fn index(self: Sampling3D, x: i64, y: i64, z: i64) usize {
         return @intCast((x * (self.size[2] + 1) + z) * (self.size[1] + 1) + y);
     }
 };
 
-/// Noise::getFastNoise3D() into a flat [x][z][y] buffer. Entries the PHP version never writes
-/// stay int 0 there, reported through `set`.
+/// Entries PHP never writes stay int 0 there, `set` reports them.
 pub fn fastNoise3D(s: *const Simplex, out: []f64, set: []bool, g: Sampling3D) void {
     @memset(out, 0);
     @memset(set, false);

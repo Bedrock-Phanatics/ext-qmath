@@ -1,7 +1,5 @@
 <?php
 
-// Differential test: runs main.php against QuarkMath and against the extension in separate
-// processes and compares every line.
 // php tests/diff/run.php --ext=modules/php_qmath.dll [--php=php] [--seed=1] [--scale=1]
 
 declare(strict_types=1);
@@ -39,7 +37,7 @@ if(isset($opt["dump"])){
 	file_put_contents($opt["dump"] . "/ext.txt", $got);
 }
 
-/** @return array<string, string> case key => encoded result */
+/** @return array<string, string> */
 $parse = function(string $output) : array{
 	$cases = [];
 	foreach(explode("\n", $output) as $line){

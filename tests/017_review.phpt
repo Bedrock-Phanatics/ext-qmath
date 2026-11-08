@@ -42,7 +42,6 @@ $v = $small->getVersion();
 t(fn() => $small->fillBox(0, 0, 0, 31, 15, 15, R::INFO_CUBE));
 var_dump($small->getVersion() !== $v, $small->getCellInfo(0, 0, 0));
 
-// snapshots cannot be reset through the constructor
 t(fn() => $s->__construct());
 var_dump($s->isFrozen());
 

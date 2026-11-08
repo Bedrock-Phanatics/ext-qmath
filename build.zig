@@ -17,7 +17,6 @@ pub fn build(b: *std.Build) void {
     const libc_file = b.option([]const u8, "libc-file", "Libc paths file for C translation and extension compilation");
     const php_binary = b.option([]const u8, "php", "PHP binary used for PHPT tests and stub generation") orelse "php";
 
-    // The pure Zig core has no PHP dependency, so its tests run without headers.
     const core_tests = b.addTest(.{ .root_module = b.createModule(.{
         .root_source_file = b.path("src/core/root.zig"),
         .target = target,
@@ -81,7 +80,7 @@ pub fn build(b: *std.Build) void {
     gen_stub_step.dependOn(&gen_stub.step);
 }
 
-// Copy the bundled tool into build/ before running it so PHP resolves its own includes.
+// Copied into build/ first so PHP resolves the tool's own includes.
 fn addRunPhpTool(b: *std.Build, php: []const u8, source: std.Build.LazyPath, destination: []const u8) *std.Build.Step.Run {
     const copy = std.Build.Step.UpdateSourceFiles.create(b);
     copy.addCopyFileToSource(source, destination);

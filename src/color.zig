@@ -1,5 +1,3 @@
-//! pocketmine\color\Color
-
 const std = @import("std");
 const rt = @import("rt.zig");
 const phpz = rt.phpz;
@@ -10,7 +8,7 @@ const Error = rt.Error;
 const vector = @import("vector.zig");
 
 var ce: rt.Ce = undefined;
-var p: [4]rt.Prop = undefined; // a, r, g, b in declaration order
+var p: [4]rt.Prop = undefined; // a, r, g, b
 
 pub fn startup() void {
     ce = rt.cePtr(ColorClass.entry);
