@@ -86,6 +86,14 @@ bench("vector3 normalize/floor/side", "php", 500_000, function(int $n) use ($vec
 		$v->normalize()->floor()->up();
 	}
 });
+bench("vector3 sides", "php", 200_000, function(int $n) use ($vectors) : void{
+	$c = 0;
+	for($i = 0; $i < $n; ++$i){
+		foreach($vectors[$i & 255]->sides() as $side){
+			++$c;
+		}
+	}
+});
 bench("aabb intersectsWith", "php", 1_000_000, function(int $n) use ($boxes) : void{
 	$c = 0;
 	for($i = 0; $i < $n; ++$i){
