@@ -55,7 +55,8 @@ pub const Simplex = struct {
 
     pub fn getFastNoise1D(self: *Simplex, ctx: Ctx, x_size: i64, rate: i64, x: i64, y: i64, z: i64) Error!void {
         if (rate == 0) return invalid("samplingRate cannot be 0");
-        if (x_size < 0 or rate < 0 or x_size > noise.max_samples) return rt.valueError("xSize and samplingRate must not be negative", .{});
+        if (x_size < 0 or rate < 0) return rt.valueError("xSize and samplingRate must not be negative", .{});
+        if (x_size >= noise.max_samples) return rt.valueError("Sample grid is too large", .{});
         if (@rem(x_size, rate) != 0) return invalid("xSize % samplingRate must return 0");
         const n: usize = @intCast(x_size + 1);
         const buf = rt.allocator.alloc(f64, n) catch return rt.oom();
@@ -149,6 +150,7 @@ pub const Simplex = struct {
 fn sampling(size: i64, rate: i64, comptime name: []const u8) Error!void {
     if (rate <= 0) return rt.valueError("Sampling rates must be positive", .{});
     if (size < 0) return rt.valueError(name ++ " must not be negative", .{});
+    if (size >= noise.max_samples) return rt.valueError("Sample grid is too large", .{});
     if (@rem(size, rate) != 0) return invalid(name ++ " % samplingRate must return 0");
 }
 

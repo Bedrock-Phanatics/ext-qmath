@@ -202,7 +202,7 @@ fn ratio(a: i64, b: i64) f64 {
 }
 
 pub fn validateSampling(size: i64, rate: i64) Error!void {
-    if (size < 0 or rate <= 0 or @rem(size, rate) != 0) return error.InvalidArgument;
+    if (size < 0 or size >= max_samples or rate <= 0 or @rem(size, rate) != 0) return error.InvalidArgument;
 }
 
 /// Noise::getFastNoise1D(). `out` has xSize + 1 entries.
