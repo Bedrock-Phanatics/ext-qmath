@@ -49,6 +49,7 @@ comptime {
 }
 
 fn startup() !void {
+    @import("core/root.zig").libm.init();
     vector.startup();
     aabb.startup();
     math.startup();
@@ -69,5 +70,7 @@ fn info(_: *phpz.ModuleEntry) void {
     phpz.info.table.row(.{ "Version", extension.version.ptr });
     phpz.info.table.row(.{ "Thread safety", if (phpz.zts) "enabled" else "disabled" });
     phpz.info.table.row(.{ "Replaces", "pocketmine/math, pocketmine/color" });
+    const libm_state: [*:0]const u8 = if (@import("core/root.zig").libm.native) "yes" else "no, results may differ from PHP in the last bit";
+    phpz.info.table.row(.{ "C runtime math", libm_state });
     phpz.info.table.end();
 }

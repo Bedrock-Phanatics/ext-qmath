@@ -1,0 +1,105 @@
+//! The C runtime's math functions, which PHP's sin(), cos(), atan2(), fmod() and `**` call.
+//! Linking can pull in compiler-rt copies whose last bit differs, so the functions are looked up in
+//! the running process at startup instead. Until init() runs, Zig's implementations stand in.
+
+const std = @import("std");
+const builtin = @import("builtin");
+
+const Unary = *const fn (f64) callconv(.c) f64;
+const Binary = *const fn (f64, f64) callconv(.c) f64;
+
+pub var sin: Unary = &zigSin;
+pub var cos: Unary = &zigCos;
+pub var atan2: Binary = &zigAtan2;
+pub var fmod: Binary = &zigFmod;
+pub var pow: Binary = &zigPow;
+/// Whether every function came from the C runtime.
+pub var native: bool = false;
+
+fn zigSin(x: f64) callconv(.c) f64 {
+    return @sin(x);
+}
+
+fn zigCos(x: f64) callconv(.c) f64 {
+    return @cos(x);
+}
+
+fn zigAtan2(y: f64, x: f64) callconv(.c) f64 {
+    return std.math.atan2(y, x);
+}
+
+fn zigFmod(x: f64, y: f64) callconv(.c) f64 {
+    return @rem(x, y);
+}
+
+fn zigPow(x: f64, y: f64) callconv(.c) f64 {
+    return std.math.pow(f64, x, y);
+}
+
+extern "kernel32" fn GetModuleHandleA(name: ?[*:0]const u8) callconv(.c) ?*anyopaque;
+extern "kernel32" fn GetProcAddress(module: *anyopaque, name: [*:0]const u8) callconv(.c) ?*anyopaque;
+
+const Resolver = struct {
+    handle: *anyopaque,
+
+    fn find(self: Resolver, comptime T: type, name: [*:0]const u8) ?T {
+        const p = if (builtin.os.tag == .windows) GetProcAddress(self.handle, name) else std.c.dlsym(self.handle, name);
+        return @ptrCast(@alignCast(p orelse return null));
+    }
+};
+
+fn resolver() ?Resolver {
+    if (builtin.os.tag == .windows) {
+        // PHP's official Windows builds link the Universal CRT dynamically.
+        for ([_][*:0]const u8{ "ucrtbase.dll", "api-ms-win-crt-math-l1-1-0.dll", "msvcrt.dll" }) |dll| {
+            if (GetModuleHandleA(dll)) |h| return .{ .handle = h };
+        }
+        return null;
+    }
+    // The main program's handle searches the global scope, where PHP's libm lives. Our own copies are local.
+    return .{ .handle = std.c.dlopen(null, .{ .LAZY = true }) orelse return null };
+}
+
+pub inline fn sinFn(x: f64) f64 {
+    return sin(x);
+}
+
+pub inline fn cosFn(x: f64) f64 {
+    return cos(x);
+}
+
+pub inline fn atan2Fn(y: f64, x: f64) f64 {
+    return atan2(y, x);
+}
+
+pub inline fn fmodFn(x: f64, y: f64) f64 {
+    return fmod(x, y);
+}
+
+pub inline fn powFn(x: f64, y: f64) f64 {
+    return pow(x, y);
+}
+
+/// Called once during module startup, before any other thread runs.
+pub fn init() void {
+    const r = resolver() orelse return;
+    const s = r.find(Unary, "sin") orelse return;
+    const c = r.find(Unary, "cos") orelse return;
+    const a = r.find(Binary, "atan2") orelse return;
+    const f = r.find(Binary, "fmod") orelse return;
+    const p = r.find(Binary, "pow") orelse return;
+    sin = s;
+    cos = c;
+    atan2 = a;
+    fmod = f;
+    pow = p;
+    native = true;
+}
+
+test "resolves the C runtime" {
+    init();
+    // A standalone test binary may not load libm at all, PHP always does.
+    if (!native) return error.SkipZigTest;
+    try std.testing.expectEqual(@as(f64, 9), pow(3, 2));
+    try std.testing.expectEqual(@as(f64, 0), sin(0));
+}

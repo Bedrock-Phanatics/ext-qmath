@@ -162,14 +162,13 @@ pub const Math = struct {
     }
 };
 
-extern fn cos(x: f64) f64;
-extern fn sin(x: f64) f64;
+const libm = core.libm;
 
 pub const VectorMath = struct {
     pub fn __construct() void {}
 
     pub fn getDirection2D(ctx: Ctx, azimuth: f64) void {
-        vector.newV2(rt.ret(ctx), cos(azimuth), sin(azimuth));
+        vector.newV2(rt.ret(ctx), libm.cos(azimuth), libm.sin(azimuth));
     }
 
     pub fn getDirection3D(ctx: Ctx, yaw: f64, pitch: f64) void {

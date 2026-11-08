@@ -6,7 +6,7 @@ const num = @import("num.zig");
 const Num = num.Num;
 const NumVec = @import("geom.zig").NumVec;
 
-extern fn pow(x: f64, y: f64) f64;
+const pow = @import("libm.zig").powFn;
 
 pub const max_cells: usize = 1 << 22;
 const max_steps_per_ray: f64 = 1_000_000;

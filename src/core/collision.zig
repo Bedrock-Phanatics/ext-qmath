@@ -11,7 +11,7 @@ const geom = @import("geom.zig");
 const Box = geom.Box;
 const Vec = geom.Vec;
 
-extern fn pow(x: f64, y: f64) f64;
+const pow = @import("libm.zig").powFn;
 
 /// RuntimeBlockStateRegistry collision info values. `unknown` marks cells with no data.
 pub const Info = enum(u8) {

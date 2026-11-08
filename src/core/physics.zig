@@ -5,11 +5,12 @@ const num = @import("num.zig");
 const Num = num.Num;
 const NumVec = @import("geom.zig").NumVec;
 
-extern fn sin(x: f64) f64;
-extern fn cos(x: f64) f64;
-extern fn atan2(y: f64, x: f64) f64;
-extern fn fmod(x: f64, y: f64) f64;
-extern fn pow(x: f64, y: f64) f64;
+const libm = @import("libm.zig");
+const sin = libm.sinFn;
+const cos = libm.cosFn;
+const atan2 = libm.atan2Fn;
+const fmod = libm.fmodFn;
+const pow = libm.powFn;
 
 pub const pi: f64 = 3.14159265358979323846;
 pub const pi_2: f64 = 1.57079632679489661923;

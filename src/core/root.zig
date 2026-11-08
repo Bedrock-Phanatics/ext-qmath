@@ -1,6 +1,7 @@
 //! Pure Zig core with no PHP dependency.
 
 pub const num = @import("num.zig");
+pub const libm = @import("libm.zig");
 pub const geom = @import("geom.zig");
 pub const voxel = @import("voxel.zig");
 pub const collision = @import("collision.zig");
