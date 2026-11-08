@@ -173,7 +173,7 @@ pub const ExplosionMath = struct {
         while (c.zend_hash_get_current_data_ex(arr, &pos)) |raw| : (_ = c.zend_hash_move_forward_ex(arr, &pos)) {
             const zv = rt.deref(raw);
             if (rt.ztype(zv) != rt.IS_OBJECT or !rt.instanceOf(zv.value.obj, aabb.bb_ce)) {
-                c.zend_argument_type_error(3, "must contain only pocketmine\\math\\AxisAlignedBB, %s found", c.zend_zval_value_name(zv));
+                c.zend_argument_type_error(3, "must contain only quark\\math\\AxisAlignedBB, %s found", c.zend_zval_value_name(zv));
                 return error.PhpException;
             }
             const b = try region.validBox(try aabb.readBox(zv.value.obj));
@@ -188,5 +188,5 @@ pub const ExplosionMath = struct {
     }
 };
 
-pub const ResistanceGridClass = phpz.Class("qmath\\ResistanceGrid", Grid, .{ .deinit = Grid.deinit });
-pub const ExplosionMathClass = phpz.Class("qmath\\ExplosionMath", ExplosionMath, .{});
+pub const ResistanceGridClass = phpz.Class("quark\\math\\physics\\ResistanceGrid", Grid, .{ .deinit = Grid.deinit });
+pub const ExplosionMathClass = phpz.Class("quark\\math\\physics\\ExplosionMath", ExplosionMath, .{});

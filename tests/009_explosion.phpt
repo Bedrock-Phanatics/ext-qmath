@@ -5,11 +5,11 @@ Explosion ray tracing and exposure
 --FILE--
 <?php
 declare(strict_types=1);
-use pocketmine\math\AxisAlignedBB;
-use pocketmine\math\Vector3;
-use qmath\ExplosionMath;
-use qmath\ResistanceGrid;
-use qmath\CollisionRegion as R;
+use quark\math\AxisAlignedBB;
+use quark\math\Vector3;
+use quark\math\physics\ExplosionMath;
+use quark\math\physics\ResistanceGrid;
+use quark\math\collision\CollisionRegion as R;
 
 function t(callable $f) { try { var_dump($f()); } catch (Throwable $e) { echo get_class($e), ": ", $e->getMessage(), "\n"; } }
 
@@ -53,7 +53,7 @@ var_dump(ExplosionMath::exposures($r, new Vector3(0.5, 0.5, 0.5), ['zombie' => $
 t(fn() => ExplosionMath::exposure($r, new Vector3(0.5, 0.5, 0.5), new AxisAlignedBB(0, 0, 0, 5000, 1, 1)));
 --EXPECT--
 int(10)
-qmath\CollisionDataException: The explosion reaches a cell with no resistance data
+quark\math\collision\CollisionDataException: The explosion reaches a cell with no resistance data
 bool(true)
 bool(true)
 int(0)
@@ -69,7 +69,7 @@ ValueError: (5, 5, 5) is not one of the explosion's rays
 ValueError: Invalid explosion parameters: radius and stepLen must be positive and finite, rays between 2 and 64, and the rays at most 1e8 steps long in total
 ValueError: Invalid explosion parameters: radius and stepLen must be positive and finite, rays between 2 and 64, and the rays at most 1e8 steps long in total
 ValueError: Invalid explosion parameters: radius and stepLen must be positive and finite, rays between 2 and 64, and the rays at most 1e8 steps long in total
-qmath\CollisionDataException: The explosion reaches outside the resistance grid
+quark\math\collision\CollisionDataException: The explosion reaches outside the resistance grid
 ValueError: Resistance must not be NAN, use setInvalid()
 ValueError: Expected 74088 bytes, one double per cell
 float(1)

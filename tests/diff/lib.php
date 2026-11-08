@@ -96,12 +96,12 @@ function enc(mixed $v, int $depth = 0) : string{
 		return "it[" . implode(",", $parts) . "]";
 	}
 	if(is_object($v)){
-		$class = get_class($v);
 		$parts = [];
 		foreach((array) $v as $k => $item){
 			$parts[] = str_replace("\0", "|", (string) $k) . "=" . enc($item, $depth + 1);
 		}
-		return $class . "{" . implode(",", $parts) . "}";
+		// The reference run uses aliased pocketmine classes, private property keys carry the class name too
+		return str_replace(["pocketmine\\math\\", "pocketmine\\color\\"], ["quark\\math\\", "quark\\color\\"], get_class($v) . "{" . implode(",", $parts) . "}");
 	}
 	return gettype($v);
 }

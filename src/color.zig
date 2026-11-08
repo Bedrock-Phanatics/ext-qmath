@@ -150,4 +150,4 @@ pub const Color = struct {
     }
 };
 
-pub const ColorClass = phpz.Class("pocketmine\\color\\Color", Color, .{});
+pub const ColorClass = phpz.Class("quark\\color\\Color", Color, .{});

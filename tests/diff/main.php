@@ -14,10 +14,13 @@ if($mode === "ref"){
 		exit(2);
 	}
 	$src = getenv("QUARKMATH_SRC") ?: __DIR__ . "/../../../QuarkMath/src";
-	foreach(["Axis", "Facing", "Math", "Vector2", "Vector3", "VectorMath", "AxisAlignedBB", "RayTraceResult", "VoxelRayTrace", "Matrix"] as $class){
+	// The PHP originals live in pocketmine\, so alias them to the names the extension registers.
+	foreach(["Axis", "Facing", "Math", "Vector2", "Vector3", "VectorMath", "AxisAlignedBB", "RayTraceResult", "VoxelRayTrace"] as $class){
 		require "$src/$class.php";
+		class_alias("pocketmine\\math\\$class", "quark\\math\\$class");
 	}
 	require (getenv("PMCOLOR_SRC") ?: __DIR__ . "/../../../Color/src") . "/Color.php";
+	class_alias("pocketmine\\color\\Color", "quark\\color\\Color");
 }elseif(!extension_loaded("qmath")){
 	fwrite(STDERR, "qmath is not loaded\n");
 	exit(2);
@@ -43,7 +46,6 @@ suiteAABB($g, 150 * $k);
 suiteFacing();
 suiteMath($g, 60 * $k);
 suiteVoxel($g, 120 * $k);
-suiteMatrix($g, 30 * $k);
 suiteColor($g, 60 * $k);
 suiteCollision($g, 4 * $k, 60);
 suiteProjectile($g, 3 * $k, 80);

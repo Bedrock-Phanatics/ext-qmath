@@ -5,8 +5,8 @@ Voxel ray iterator semantics
 --FILE--
 <?php
 declare(strict_types=1);
-use pocketmine\math\Vector3;
-use pocketmine\math\VoxelRayTrace;
+use quark\math\Vector3;
+use quark\math\VoxelRayTrace;
 
 $it = VoxelRayTrace::betweenPoints(new Vector3(0.5, 0.5, 0.5), new Vector3(-1.5, 2.5, 0.5));
 var_dump(get_class($it), $it instanceof Iterator);
@@ -23,11 +23,11 @@ $zero = VoxelRayTrace::betweenPoints(new Vector3(1, 2, 3), new Vector3(1, 2, 3))
 echo "created\n";
 try { foreach ($zero as $v) {} } catch (InvalidArgumentException $e) { echo $e->getMessage(), "\n"; }
 var_dump($zero->valid());
-try { new qmath\VoxelRayIterator(); } catch (Error $e) { echo get_class($e), "\n"; }
-var_dump(qmath\Raycast::voxels(new Vector3(0.5, 0.5, 0.5), new Vector3(2.5, 0.5, 0.5)));
-try { qmath\Raycast::voxels(new Vector3(0, 0, 0), new Vector3(100, 0, 0), 10); } catch (ValueError $e) { echo $e->getMessage(), "\n"; }
+try { new quark\math\VoxelRayIterator(); } catch (Error $e) { echo get_class($e), "\n"; }
+var_dump(quark\math\collision\Raycast::voxels(new Vector3(0.5, 0.5, 0.5), new Vector3(2.5, 0.5, 0.5)));
+try { quark\math\collision\Raycast::voxels(new Vector3(0, 0, 0), new Vector3(100, 0, 0), 10); } catch (ValueError $e) { echo $e->getMessage(), "\n"; }
 --EXPECT--
-string(22) "qmath\VoxelRayIterator"
+string(27) "quark\math\VoxelRayIterator"
 bool(true)
 0:Vector3(x=0,y=0,z=0)
 1:Vector3(x=0,y=1,z=0)

@@ -196,4 +196,4 @@ fn readPermutation(ctx: Ctx, perm: *[512]u8) Error!void {
     }
 }
 
-pub const SimplexClass = phpz.Class("qmath\\Simplex", Simplex, .{});
+pub const SimplexClass = phpz.Class("quark\\math\\noise\\Simplex", Simplex, .{});

@@ -4,16 +4,15 @@ declare(strict_types=1);
 
 namespace qmath\test;
 
-use pocketmine\color\Color;
-use pocketmine\math\Axis;
-use pocketmine\math\AxisAlignedBB;
-use pocketmine\math\Facing;
-use pocketmine\math\Math;
-use pocketmine\math\Matrix;
-use pocketmine\math\Vector2;
-use pocketmine\math\Vector3;
-use pocketmine\math\VectorMath;
-use pocketmine\math\VoxelRayTrace;
+use quark\color\Color;
+use quark\math\Axis;
+use quark\math\AxisAlignedBB;
+use quark\math\Facing;
+use quark\math\Math;
+use quark\math\Vector2;
+use quark\math\Vector3;
+use quark\math\VectorMath;
+use quark\math\VoxelRayTrace;
 
 function native() : bool{
 	return extension_loaded('qmath');
@@ -62,7 +61,6 @@ function suiteVector3(Gen $g, int $n) : void{
 		$step = $g->pick([1, 2, -1, 0, $g->int(-5, 5), PHP_INT_MAX]);
 		$cases = [
 			'ctor' => fn() => new Vector3($v->x, $v->y, $v->z),
-			'getXYZ' => fn() => [$v->getX(), $v->getY(), $v->getZ()],
 			'floorXYZ' => fn() => [$v->getFloorX(), $v->getFloorY(), $v->getFloorZ()],
 			'add' => fn() => $v->add($w->x, $w->y, $w->z),
 			'addVector' => fn() => $v->addVector($w),
@@ -77,22 +75,15 @@ function suiteVector3(Gen $g, int $n) : void{
 			'abs' => fn() => $v->abs(),
 			'getSide' => fn() => $v->getSide($side, $step),
 			'dirs' => fn() => [$v->down(), $v->up($step), $v->north(), $v->south(), $v->west(2), $v->east()],
-			'sides' => fn() => $v->sides($step),
-			'sidesArray' => fn() => [$v->sidesArray(), $v->sidesArray(true, 2)],
-			'sidesAroundAxis' => fn() => $v->sidesAroundAxis($g->int(-1, 3), $step),
+			'sides' => fn() => iterator_to_array($v->sides($step)),
+			'sidesAroundAxis' => fn() => iterator_to_array($v->sidesAroundAxis($g->int(0, 2), $step)),
 			'asVector3' => fn() => $v->asVector3(),
 			'distance' => fn() => [$v->distance($w), $v->distanceSquared($w)],
-			'maxPlain3' => fn() => $v->maxPlainDistance($w),
-			'maxPlain2' => fn() => $v->maxPlainDistance(new Vector2($g->finite(), $g->finite())),
-			'maxPlainF' => fn() => $v->maxPlainDistance($g->finite(), $g->finite()),
 			'length' => fn() => [$v->length(), $v->lengthSquared()],
 			'normalize' => fn() => $v->normalize(),
 			'dot' => fn() => $v->dot($w),
 			'cross' => fn() => $v->cross($w),
 			'equals' => fn() => [$v->equals($w), $v->equals($v->asVector3()), $v->equals(new Vector3((float) $v->x, (float) $v->y, (float) $v->z))],
-			'interX' => fn() => $v->getIntermediateWithXValue($w, $f),
-			'interY' => fn() => $v->getIntermediateWithYValue($w, $g->finite()),
-			'interZ' => fn() => $v->getIntermediateWithZValue($w, $g->finite()),
 			'toString' => fn() => (string) $v,
 			'with' => fn() => $v->withComponents($g->chance(50) ? null : $g->num(), $g->chance(50) ? null : $g->num(), $g->chance(50) ? null : $g->num()),
 			'withNone' => fn() => $v->withComponents(null, null, null) === $v,
@@ -113,7 +104,7 @@ function suiteVector2(Gen $g, int $n) : void{
 		$b = new Vector2($g->finite(), $g->finite());
 		$f = $g->pick([$g->finite(), 0.0, 3.0, NAN]);
 		$cases = [
-			'get' => fn() => [$a->getX(), $a->getY(), $a->getFloorX(), $a->getFloorY()],
+			'get' => fn() => [$a->getFloorX(), $a->getFloorY()],
 			'add' => fn() => [$a->add($b->x, $b->y), $a->addVector($b), $a->subtract($b->x, $b->y), $a->subtractVector($b)],
 			'round' => fn() => [$a->ceil(), $a->floor(), $a->round(), $a->abs()],
 			'scale' => fn() => [$a->multiply($f), $a->divide($f)],
@@ -150,7 +141,7 @@ function suiteAABB(Gen $g, int $n) : void{
 			'stretch' => fn() => [(clone $a)->stretch($axis, $dist), $a->stretchedCopy($axis, $dist), (clone $a)->squash($axis, $dist), $a->squashedCopy($axis, $dist)],
 			'offsets' => fn() => [$a->calculateXOffset($b, $d[0]), $a->calculateYOffset($b, $d[1]), $a->calculateZOffset($b, $d[2])],
 			'intersects' => fn() => [$a->intersectsWith($b), $a->intersectsWith($b, $g->pick([0.0, 0.1, -0.1]))],
-			'inside' => fn() => [$a->isVectorInside($v), $a->isVectorInYZ($v), $a->isVectorInXZ($v), $a->isVectorInXY($v)],
+			'inside' => fn() => [$a->isVectorInside($v)],
 			'lengths' => fn() => [$a->getAverageEdgeLength(), $a->getXLength(), $a->getYLength(), $a->getZLength(), $a->getVolume(), $a->isCube(), $a->isCube(0.5)],
 			'intercept' => fn() => $a->calculateIntercept($p1, $p2),
 			'str' => fn() => (string) $a,
@@ -207,45 +198,6 @@ function suiteVoxel(Gen $g, int $n) : void{
 	}
 }
 
-function suiteMatrix(Gen $g, int $n) : void{
-	$cell = fn() => $g->pick([$g->int(-9, 9), $g->finite(), 0, 2.5]);
-	for($i = 0; $i < $n; ++$i){
-		$r = $g->int(1, 3);
-		$c = $g->int(1, 3);
-		$rows = [];
-		for($y = 0; $y < $r; ++$y){
-			for($x = 0; $x < $c; ++$x){
-				$rows[$y][$x] = $cell();
-			}
-		}
-		$m = new Matrix($r, $c, $rows);
-		$o = new Matrix($r, $c, $rows);
-		$o->setElement(0, 0, $g->finite());
-		$sq = new Matrix($r, $r, $rows);
-		$t = new Matrix($c, $g->int(1, 3), $rows);
-		$cases = [
-			'str' => fn() => (string) $m,
-			'dims' => fn() => [$m->getRows(), $m->getColumns(), $m->isSquare()],
-			'get' => fn() => [$m->getElement(0, 0), $m->getElement($r - 1, $c - 1)],
-			'getOob' => fn() => $m->getElement($g->int(-1, $r + 1), $g->int(-1, $c + 1)),
-			'add' => fn() => (string) $m->add($o),
-			'sub' => fn() => (string) $m->subtract($o),
-			'mul' => fn() => (string) $m->multiplyScalar($g->finite()),
-			'div' => fn() => (string) $m->divideScalar($g->pick([$g->finite(), 0.0])),
-			'transpose' => fn() => (string) $m->transpose(),
-			'product' => fn() => (string) $m->product($t),
-			'productBad' => fn() => (string) $m->product($m),
-			'det' => fn() => $sq->determinant(),
-			'detBad' => fn() => $m->determinant(),
-			'array' => fn() => [isset($m[0]), isset($m[5]), $m[0], $m["0"]],
-			'shape' => fn() => (string) $m->add(new Matrix($r + 1, $c)),
-		];
-		foreach($cases as $label => $fn){
-			out("matrix", $i, $label, run($fn));
-		}
-	}
-}
-
 function suiteColor(Gen $g, int $n) : void{
 	for($i = 0; $i < $n; ++$i){
 		$code = $g->pick([$g->int(0, 0xffffffff), $g->int(-0xffffff, 0xffffff), -1, PHP_INT_MAX, 0]);
@@ -269,7 +221,7 @@ function entityBox(Gen $g, float $x, float $y, float $z) : AxisAlignedBB{
 	return new AxisAlignedBB($x - $w / 2, $y, $z - $w / 2, $x + $w / 2, $y + $h, $z + $w / 2);
 }
 
-function moveResult(\qmath\MoveResult $r) : array{
+function moveResult(\quark\math\collision\MoveResult $r) : array{
 	return [$r->dx, $r->dy, $r->dz, $r->boundingBox, $r->collidedX, $r->collidedY, $r->collidedZ, $r->collidedHorizontally, $r->collidedVertically, $r->onGround, $r->stepped];
 }
 
@@ -287,7 +239,7 @@ function suiteCollision(Gen $g, int $worlds, int $moves) : void{
 				$dz = $g->pick([$g->float(-0.6, 0.6), $g->float(-2, 2), 0.0]);
 				$result = null;
 				$res = run(function() use (&$result, $region, $world, $bb, $dx, $dy, $dz, $step, $onGround){
-					return $result = native() ? moveResult(\qmath\Collision::move($region, $bb, $dx, $dy, $dz, $step, $onGround)) : move($world, $bb, $dx, $dy, $dz, $step, $onGround);
+					return $result = native() ? moveResult(\quark\math\collision\CollisionSolver::move($region, $bb, $dx, $dy, $dz, $step, $onGround)) : move($world, $bb, $dx, $dy, $dz, $step, $onGround);
 				});
 				out("move", $wi * 1000 + $i, "t$t", $res);
 				if($result === null){
@@ -314,7 +266,7 @@ function suiteProjectile(Gen $g, int $worlds, int $rays) : void{
 		for($i = 0; $i < $rays; ++$i){
 			$s = new Vector3($g->float(-6, 6), $g->float(0.5, 4.5), $g->float(-6, 6));
 			$e = $g->chance(5) ? clone $s : new Vector3($g->float(-7, 7), $g->float(-0.5, 5.5), $g->float(-7, 7));
-			$res = run(fn() => native() ? hitArray(\qmath\Raycast::blocks($region, $s, $e)) : projectileBlocks($world, $s, $e));
+			$res = run(fn() => native() ? hitArray(\quark\math\collision\Raycast::blocks($region, $s, $e)) : projectileBlocks($world, $s, $e));
 			out("proj", $wi * 1000 + $i, "blocks", $res);
 			if($s->distanceSquared($e) > 0){
 				$segments .= pack("e6", $s->x, $s->y, $s->z, $e->x, $e->y, $e->z);
@@ -324,10 +276,10 @@ function suiteProjectile(Gen $g, int $worlds, int $rays) : void{
 			for($k = $g->int(0, 5); $k > 0; --$k){
 				$boxes[$g->chance(30) ? "e$k" : $k * 3] = entityBox($g, $g->float(-6, 6), $g->float(0, 4), $g->float(-6, 6));
 			}
-			out("proj", $wi * 1000 + $i, "entities", run(fn() => native() ? \qmath\Raycast::boxes($s, $e, $boxes, 0.3) : projectileEntities($s, $e, $boxes)));
+			out("proj", $wi * 1000 + $i, "entities", run(fn() => native() ? \quark\math\collision\Raycast::boxes($s, $e, $boxes, 0.3) : projectileEntities($s, $e, $boxes)));
 		}
 		if(native()){
-			$packed = \qmath\Raycast::batchBlocks($region, $segments);
+			$packed = \quark\math\collision\Raycast::batchBlocks($region, $segments);
 			foreach(str_split($packed, 56) as $k => $rec){
 				$u = unpack("qface/qx/qy/qz/ehx/ehy/ehz", $rec);
 				$ok = $u["face"] === -1 ? $expected[$k] === "N" : str_starts_with($expected[$k], "[0=i{$u['x']},1=i{$u['y']},2=i{$u['z']},3=i{$u['face']}");
@@ -341,7 +293,7 @@ function suiteProjectile(Gen $g, int $worlds, int $rays) : void{
 	}
 }
 
-function hitArray(?\qmath\VoxelHit $h) : ?array{
+function hitArray(?\quark\math\collision\VoxelHit $h) : ?array{
 	return $h === null ? null : [$h->blockX, $h->blockY, $h->blockZ, $h->hitFace, $h->hitVector, $h->bb];
 }
 
@@ -352,7 +304,7 @@ function suiteExposure(Gen $g, int $worlds, int $n) : void{
 		for($i = 0; $i < $n; ++$i){
 			$origin = $g->chance(20) ? new Vector3($g->int(-4, 4), $g->int(1, 3), $g->int(-4, 4)) : new Vector3($g->float(-5, 5), $g->float(1, 4), $g->float(-5, 5));
 			$bb = entityBox($g, $g->float(-5, 5), $g->float(1, 3), $g->float(-5, 5));
-			out("exposure", $wi * 1000 + $i, "e", run(fn() => native() ? \qmath\ExplosionMath::exposure($region, $origin, $bb) : exposure($world, $origin, $bb)));
+			out("exposure", $wi * 1000 + $i, "e", run(fn() => native() ? \quark\math\physics\ExplosionMath::exposure($region, $origin, $bb) : exposure($world, $origin, $bb)));
 		}
 	}
 }
@@ -372,13 +324,13 @@ function suiteExplosion(Gen $g, int $n) : void{
 		}
 		$seed = $g->int(0, 1 << 30);
 		if(native()){
-			$grid = new \qmath\ResistanceGrid(-$span, -$span, -$span, $span, $span, $span);
+			$grid = new \quark\math\physics\ResistanceGrid(-$span, -$span, -$span, $span, $span, $span);
 			foreach($res as $key => $v){
 				[$x, $y, $z] = array_map('intval', explode(":", $key));
 				$v === null ? $grid->setInvalid($x, $y, $z) : $grid->set($x, $y, $z, $v);
 			}
 			mt_srand($seed);
-			out("explode", $i, "all", run(fn() => \qmath\ExplosionMath::traceRays($grid, $source, $radius)) . " next=" . mt_rand());
+			out("explode", $i, "all", run(fn() => \quark\math\physics\ExplosionMath::traceRays($grid, $source, $radius)) . " next=" . mt_rand());
 			mt_srand($seed);
 			$seen = [];
 			$flat = [];
@@ -386,7 +338,7 @@ function suiteExplosion(Gen $g, int $n) : void{
 				for($b = 0; $b < 16; ++$b){
 					for($c = 0; $c < 16; ++$c){
 						if($a === 0 || $a === 15 || $b === 0 || $b === 15 || $c === 0 || $c === 15){
-							foreach(array_chunk(\qmath\ExplosionMath::traceRay($grid, $source, $radius, $a, $b, $c), 3) as [$x, $y, $z]){
+							foreach(array_chunk(\quark\math\physics\ExplosionMath::traceRay($grid, $source, $radius, $a, $b, $c), 3) as [$x, $y, $z]){
 								if(!isset($seen["$x:$y:$z"])){
 									$seen["$x:$y:$z"] = true;
 									array_push($flat, $x, $y, $z);
@@ -419,7 +371,7 @@ function suiteNoise(Gen $g, int $n) : void{
 		$persist = $g->pick([0.25, 0.5, 1 / 3]);
 		$exp = $g->pick([1 / 4, 1 / 32, 1 / 64, 1 / 16]);
 		$short = $g->chance(50);
-		$s = native() ? new \qmath\Simplex($short ? $perm : $full, $off[0], $off[1], $off[2], $octaves, $persist, $exp) : new RefSimplex($full, $off[0], $off[1], $off[2], $octaves, $persist, $exp);
+		$s = native() ? new \quark\math\noise\Simplex($short ? $perm : $full, $off[0], $off[1], $off[2], $octaves, $persist, $exp) : new RefSimplex($full, $off[0], $off[1], $off[2], $octaves, $persist, $exp);
 		$pts = [];
 		for($k = 0; $k < 8; ++$k){
 			$pts[] = [$g->pick([$g->finite() * 100, (float) $g->int(-100000, 100000), -0.5, 1e7 + 0.25]), $g->finite() * 10, $g->finite() * 100];
@@ -464,13 +416,13 @@ function suitePhysics(Gen $g, int $n) : void{
 		$kz = $g->pick([$g->finite(), 0.0]);
 		$limit = $g->pick([0.4, null, 0.1]);
 		$cases = native() ? [
-			'step' => fn() => \qmath\Physics::motionStep($m, $drag, $gravity, $ge, $dbg, $gf),
-			'knock' => fn() => \qmath\Physics::knockBack($m, $kx, $kz, 0.4, $limit),
+			'step' => fn() => \quark\math\physics\Physics::motionStep($m, $drag, $gravity, $ge, $dbg, $gf),
+			'knock' => fn() => \quark\math\physics\Physics::knockBack($m, $kx, $kz, 0.4, $limit),
 			'dir' => fn() => VectorMath::getDirection3D($yaw, $pitch),
-			'plane' => fn() => \qmath\Physics::directionPlane($yaw),
-			'facing' => fn() => \qmath\Physics::horizontalFacing($yaw),
-			'look' => fn() => \qmath\Physics::lookAt($eye, $target),
-			'rot' => fn() => \qmath\Physics::motionRotation($m),
+			'plane' => fn() => \quark\math\physics\Physics::directionPlane($yaw),
+			'facing' => fn() => \quark\math\physics\Physics::horizontalFacing($yaw),
+			'look' => fn() => \quark\math\physics\Physics::lookAt($eye, $target),
+			'rot' => fn() => \quark\math\physics\Physics::motionRotation($m),
 		] : [
 			'step' => fn() => motionStep($m, $drag, $gravity, $ge, $dbg, $gf),
 			'knock' => fn() => knockBack($m, $kx, $kz, 0.4, $limit),
@@ -494,9 +446,9 @@ function suiteSpatial(Gen $g, int $n) : void{
 		}
 		$q = entityBox($g, $g->float(-4, 4), $g->float(-1, 3), $g->float(-4, 4))->expand($g->float(0, 2), $g->float(0, 1), $g->float(0, 2));
 		$exclude = count($entities) > 0 && $g->chance(50) ? $entities[0] : null;
-		$res = native() ? \qmath\Spatial::overlapping($entities, $q, $exclude) : nearby($entities, $q, $exclude);
+		$res = native() ? \quark\math\collision\Spatial::overlapping($entities, $q, $exclude) : nearby($entities, $q, $exclude);
 		out("spatial", $i, "near", enc(array_map(fn($e) => array_search($e, $entities, true), $res)));
 		$boxes = array_map(fn($e) => $e->boundingBox, $entities);
-		out("spatial", $i, "boxes", enc(native() ? \qmath\Spatial::overlappingBoxes($q, $boxes) : array_map(fn($e) => array_search($e, $entities, true), nearby($entities, $q, null))));
+		out("spatial", $i, "boxes", enc(native() ? \quark\math\collision\Spatial::overlappingBoxes($q, $boxes) : array_map(fn($e) => array_search($e, $entities, true), nearby($entities, $q, null))));
 	}
 }

@@ -259,7 +259,7 @@ pub const Backing = struct {
             error.UnknownCell => return -1,
             else => return fail(e),
         };
-        return @intFromEnum(info);
+        return @backingInt(info);
     }
 };
 
@@ -290,7 +290,7 @@ fn readBoxList(arr: *c.zend_array, buf: []Box, arg_num: u32) Error!usize {
     while (c.zend_hash_get_current_data_ex(arr, &pos)) |zv_raw| : (_ = c.zend_hash_move_forward_ex(arr, &pos)) {
         const zv = rt.deref(zv_raw);
         if (rt.ztype(zv) != rt.IS_OBJECT or !rt.instanceOf(zv.value.obj, aabb.bb_ce)) {
-            c.zend_argument_type_error(arg_num, "must contain only pocketmine\\math\\AxisAlignedBB, %s found", c.zend_zval_value_name(zv));
+            c.zend_argument_type_error(arg_num, "must contain only quark\\math\\AxisAlignedBB, %s found", c.zend_zval_value_name(zv));
             return error.PhpException;
         }
         buf[n] = try aabb.readBox(zv.value.obj);
@@ -358,7 +358,7 @@ fn newSweepResult(out: *c.zval, time: f64, face: i64, box: *c.zval, key: *c.zval
     rt.copy(rt.initSlot(o, sr[3]), key);
 }
 
-pub const Collision = struct {
+pub const CollisionSolver = struct {
     pub fn __construct() void {}
 
     pub fn move(ctx: Ctx) Error!void {
@@ -412,7 +412,7 @@ pub const Collision = struct {
         while (c.zend_hash_get_current_data_ex(arr, &pos)) |raw| : (_ = c.zend_hash_move_forward_ex(arr, &pos)) {
             const zv = rt.deref(raw);
             if (rt.ztype(zv) != rt.IS_OBJECT or !rt.instanceOf(zv.value.obj, aabb.bb_ce)) {
-                c.zend_argument_type_error(5, "must contain only pocketmine\\math\\AxisAlignedBB, %s found", c.zend_zval_value_name(zv));
+                c.zend_argument_type_error(5, "must contain only quark\\math\\AxisAlignedBB, %s found", c.zend_zval_value_name(zv));
                 return error.PhpException;
             }
             const box = try validBox(try aabb.readBox(zv.value.obj));
@@ -445,8 +445,8 @@ fn registerException(register_fn: anytype) *phpz.ClassEntry {
     return register_fn(.{.builtin("RuntimeException")});
 }
 
-pub const CollisionDataExceptionClass = phpz.Class("qmath\\CollisionDataException", struct {}, .{ .register = registerException });
-pub const CollisionRegionClass = phpz.Class("qmath\\CollisionRegion", Backing, .{ .deinit = Backing.deinit, .clone = Backing.clone });
-pub const MoveResultClass = phpz.Class("qmath\\MoveResult", Empty, .{});
-pub const SweepResultClass = phpz.Class("qmath\\SweepResult", Empty, .{});
-pub const CollisionClass = phpz.Class("qmath\\Collision", Collision, .{});
+pub const CollisionDataExceptionClass = phpz.Class("quark\\math\\collision\\CollisionDataException", struct {}, .{ .register = registerException });
+pub const CollisionRegionClass = phpz.Class("quark\\math\\collision\\CollisionRegion", Backing, .{ .deinit = Backing.deinit, .clone = Backing.clone });
+pub const MoveResultClass = phpz.Class("quark\\math\\collision\\MoveResult", Empty, .{});
+pub const SweepResultClass = phpz.Class("quark\\math\\collision\\SweepResult", Empty, .{});
+pub const CollisionSolverClass = phpz.Class("quark\\math\\collision\\CollisionSolver", CollisionSolver, .{});

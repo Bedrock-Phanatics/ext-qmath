@@ -5,10 +5,10 @@ Raycast against blocks and entity boxes
 --FILE--
 <?php
 declare(strict_types=1);
-use pocketmine\math\AxisAlignedBB;
-use pocketmine\math\Vector3;
-use qmath\Raycast;
-use qmath\CollisionRegion as R;
+use quark\math\AxisAlignedBB;
+use quark\math\Vector3;
+use quark\math\collision\Raycast;
+use quark\math\collision\CollisionRegion as R;
 
 function t(callable $f) { try { var_dump($f()); } catch (Throwable $e) { echo get_class($e), ": ", $e->getMessage(), "\n"; } }
 
@@ -18,9 +18,9 @@ $r->setCell(4, 2, 0, R::INFO_CUBE);
 $r->setCell(2, 2, 0, R::INFO_CUSTOM, [new AxisAlignedBB(2, 2, 0, 3, 2.5, 1)]);
 
 $hit = Raycast::blocks($r, new Vector3(0.5, 2.25, 0.5), new Vector3(7.5, 2.25, 0.5));
-var_dump(get_class($hit), $hit instanceof pocketmine\math\RayTraceResult, $hit->blockX, $hit->blockY, $hit->blockZ, $hit->hitFace, (string) $hit->hitVector, (string) $hit->bb);
+var_dump(get_class($hit), $hit instanceof quark\math\RayTraceResult, $hit->blockX, $hit->blockY, $hit->blockZ, $hit->hitFace, (string) $hit->hitVector, (string) $hit->bb);
 $hit = Raycast::blocks($r, new Vector3(0.5, 2.75, 0.5), new Vector3(7.5, 2.75, 0.5));
-var_dump($hit->blockX, $hit->getHitFace());
+var_dump($hit->blockX, $hit->hitFace);
 var_dump(Raycast::blocks($r, new Vector3(0.5, 4.5, 0.5), new Vector3(7.5, 4.5, 0.5)));
 var_dump(Raycast::lineOfSight($r, new Vector3(0.5, 4.5, 0.5), new Vector3(7.5, 4.5, 0.5)), Raycast::lineOfSight($r, new Vector3(0.5, 2.75, 0.5), new Vector3(7.5, 2.75, 0.5)), Raycast::lineOfSight($r, new Vector3(1, 1, 1), new Vector3(1, 1, 1)));
 t(fn() => Raycast::blocks($r, new Vector3(1, 1, 1), new Vector3(1, 1, 1)));
@@ -42,7 +42,7 @@ var_dump(strlen($out), unpack("qface/qx/qy/qz/ehx/ehy/ehz", $out), unpack("qface
 t(fn() => Raycast::batchBlocks($r, "short"));
 var_dump(Raycast::batchBlocks($r, ""));
 --EXPECT--
-string(14) "qmath\VoxelHit"
+string(29) "quark\math\collision\VoxelHit"
 bool(true)
 int(2)
 int(2)
@@ -57,9 +57,9 @@ bool(true)
 bool(false)
 bool(true)
 InvalidArgumentException: Start and end points are the same, giving a zero direction vector
-object(qmath\VoxelHit)#3 (6) {
+object(quark\math\collision\VoxelHit)#3 (6) {
   ["bb"]=>
-  object(pocketmine\math\AxisAlignedBB)#6 (6) {
+  object(quark\math\AxisAlignedBB)#6 (6) {
     ["minX"]=>
     float(4)
     ["minY"]=>
@@ -76,7 +76,7 @@ object(qmath\VoxelHit)#3 (6) {
   ["hitFace"]=>
   int(4)
   ["hitVector"]=>
-  object(pocketmine\math\Vector3)#10 (3) {
+  object(quark\math\Vector3)#10 (3) {
     ["x"]=>
     float(4)
     ["y"]=>
@@ -91,12 +91,12 @@ object(qmath\VoxelHit)#3 (6) {
   ["blockZ"]=>
   int(0)
 }
-qmath\CollisionDataException: The query needs a cell with no collision data
+quark\math\collision\CollisionDataException: The query needs a cell with no collision data
 string(4) "near"
 string(24) "Vector3(x=2.7,y=1,z=0.5)"
 string(45) "AxisAlignedBB(2.7, -0.3, -0.3, 4.3, 2.3, 1.3)"
 NULL
-TypeError: qmath\Raycast::boxes(): Argument #3 ($boxes) must contain only pocketmine\math\AxisAlignedBB, int found
+TypeError: quark\math\collision\Raycast::boxes(): Argument #3 ($boxes) must contain only quark\math\AxisAlignedBB, int found
 int(112)
 array(7) {
   ["face"]=>

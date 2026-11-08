@@ -6,12 +6,12 @@ declare(strict_types=1);
 
 namespace qmath\test;
 
-use pocketmine\math\AxisAlignedBB;
-use pocketmine\math\Facing;
-use pocketmine\math\RayTraceResult;
-use pocketmine\math\Vector2;
-use pocketmine\math\Vector3;
-use pocketmine\math\VoxelRayTrace;
+use quark\math\AxisAlignedBB;
+use quark\math\Facing;
+use quark\math\RayTraceResult;
+use quark\math\Vector2;
+use quark\math\Vector3;
+use quark\math\VoxelRayTrace;
 
 const COLLISION_CUSTOM = 0;
 const COLLISION_CUBE = 1;
@@ -80,9 +80,9 @@ final class World{
 	}
 
 	/** One cell at a time, outside the world is air */
-	public function toRegion() : \qmath\CollisionRegion{
-		$r = new \qmath\CollisionRegion();
-		$r->fillBox($this->minX - 1, $this->minY - 1, $this->minZ - 1, $this->maxX + 1, $this->maxY + 1, $this->maxZ + 1, \qmath\CollisionRegion::INFO_NONE);
+	public function toRegion() : \quark\math\collision\CollisionRegion{
+		$r = new \quark\math\collision\CollisionRegion();
+		$r->fillBox($this->minX - 1, $this->minY - 1, $this->minZ - 1, $this->maxX + 1, $this->maxY + 1, $this->maxZ + 1, \quark\math\collision\CollisionRegion::INFO_NONE);
 		foreach($this->cells as $key => [$info, $_]){
 			[$x, $y, $z] = array_map('intval', explode(":", $key));
 			$r->setCell($x, $y, $z, $info, $info === COLLISION_CUBE ? [] : $this->ownBoxes($x, $y, $z));
@@ -91,8 +91,8 @@ final class World{
 	}
 
 	/** Whole chunk sections like Quark exports from a SubChunk */
-	public function toRegionSections() : \qmath\CollisionRegion{
-		$r = new \qmath\CollisionRegion();
+	public function toRegionSections() : \quark\math\collision\CollisionRegion{
+		$r = new \quark\math\collision\CollisionRegion();
 		for($sx = ($this->minX - 1) >> 4; $sx <= ($this->maxX + 1) >> 4; ++$sx){
 			for($sz = ($this->minZ - 1) >> 4; $sz <= ($this->maxZ + 1) >> 4; ++$sz){
 				for($sy = ($this->minY - 1) >> 4; $sy <= ($this->maxY + 1) >> 4; ++$sy){

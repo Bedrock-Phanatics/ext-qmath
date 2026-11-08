@@ -5,8 +5,8 @@ Vector3 typed property, reference and arithmetic edge cases
 --FILE--
 <?php
 declare(strict_types=1);
-use pocketmine\math\Vector3;
-use pocketmine\math\AxisAlignedBB;
+use quark\math\Vector3;
+use quark\math\AxisAlignedBB;
 
 function t(callable $f) { try { var_dump($f()); } catch (Throwable $e) { echo get_class($e), ": ", $e->getMessage(), "\n"; } }
 
@@ -45,16 +45,16 @@ t(fn() => [(new Vector3(2, 0, 0))->angle(new Vector3(0, 3, 0)), (new Vector3(1, 
 t(fn() => (new Vector3(5, -5, 0))->clamp(new Vector3(0, 0, 0), new Vector3(2, 2, 2)));
 t(fn() => [(new Vector3(1, 2, 3))->isFinite(), (new Vector3(INF, 2, 3))->isFinite()]);
 --EXPECT--
-Error: Typed property pocketmine\math\Vector3::$x must not be accessed before initialization
-Error: Typed property pocketmine\math\Vector3::$x must not be accessed before initialization
-Error: Typed property pocketmine\math\Vector3::$y must not be accessed before initialization
-Error: Cannot make instance of internal class lazy: Sub inherits internal class pocketmine\math\Vector3
+Error: Typed property quark\math\Vector3::$x must not be accessed before initialization
+Error: Typed property quark\math\Vector3::$x must not be accessed before initialization
+Error: Typed property quark\math\Vector3::$y must not be accessed before initialization
+Error: Cannot make instance of internal class lazy: Sub inherits internal class quark\math\Vector3
 float(2)
 float(2)
 float(5)
 float(9.223372036854776E+18)
 float(9.223372036854776E+18)
-object(pocketmine\math\Vector3)#4 (3) {
+object(quark\math\Vector3)#4 (3) {
   ["x"]=>
   int(-3)
   ["y"]=>
@@ -64,7 +64,7 @@ object(pocketmine\math\Vector3)#4 (3) {
 }
 DivisionByZeroError: Division by zero
 ValueError: round(): Argument #3 ($mode) must be a valid rounding mode (RoundingMode::*)
-object(pocketmine\math\Vector3)#4 (3) {
+object(quark\math\Vector3)#4 (3) {
   ["x"]=>
   float(1.3)
   ["y"]=>
@@ -72,7 +72,7 @@ object(pocketmine\math\Vector3)#4 (3) {
   ["z"]=>
   float(-2.5)
 }
-object(pocketmine\math\Vector3)#6 (3) {
+object(quark\math\Vector3)#6 (3) {
   ["x"]=>
   int(2)
   ["y"]=>
@@ -80,7 +80,7 @@ object(pocketmine\math\Vector3)#6 (3) {
   ["z"]=>
   int(-3)
 }
-object(pocketmine\math\Vector3)#4 (3) {
+object(quark\math\Vector3)#4 (3) {
   ["x"]=>
   int(1)
   ["y"]=>
@@ -88,8 +88,8 @@ object(pocketmine\math\Vector3)#4 (3) {
   ["z"]=>
   int(3)
 }
-TypeError: pocketmine\math\Vector3::addVector(): Argument #1 ($v) must be of type pocketmine\math\Vector3, stdClass given
-object(pocketmine\math\Vector3)#6 (3) {
+TypeError: quark\math\Vector3::addVector(): Argument #1 ($v) must be of type quark\math\Vector3, stdClass given
+object(quark\math\Vector3)#6 (3) {
   ["x"]=>
   int(1)
   ["y"]=>
@@ -97,7 +97,7 @@ object(pocketmine\math\Vector3)#6 (3) {
   ["z"]=>
   int(3)
 }
-object(pocketmine\math\Vector3)#4 (3) {
+object(quark\math\Vector3)#4 (3) {
   ["x"]=>
   float(2)
   ["y"]=>
@@ -114,7 +114,7 @@ array(3) {
   [2]=>
   float(6)
 }
-object(pocketmine\math\Vector3)#9 (3) {
+object(quark\math\Vector3)#9 (3) {
   ["x"]=>
   float(2)
   ["y"]=>

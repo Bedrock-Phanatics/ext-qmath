@@ -6,7 +6,6 @@ const vector = @import("vector.zig");
 const aabb = @import("aabb.zig");
 const math = @import("math.zig");
 const raycast = @import("raycast.zig");
-const matrix = @import("matrix.zig");
 const color = @import("color.zig");
 const region = @import("region.zig");
 const explosion = @import("explosion.zig");
@@ -27,13 +26,12 @@ comptime {
             math.MathClass,
             math.VectorMathClass,
             raycast.VoxelRayTraceClass,
-            matrix.MatrixClass,
             color.ColorClass,
             region.CollisionDataExceptionClass,
             region.CollisionRegionClass,
             region.MoveResultClass,
             region.SweepResultClass,
-            region.CollisionClass,
+            region.CollisionSolverClass,
             raycast.VoxelHitClass,
             raycast.VoxelRayIteratorClass,
             raycast.RaycastClass,
@@ -57,7 +55,6 @@ fn startup() !void {
     aabb.startup();
     math.startup();
     raycast.startup();
-    matrix.startup();
     color.startup();
     region.startup();
     spatial.startup();
@@ -72,7 +69,7 @@ fn info(_: *phpz.ModuleEntry) void {
     phpz.info.table.header(.{ "qmath support", "enabled" });
     phpz.info.table.row(.{ "Version", extension.version.ptr });
     phpz.info.table.row(.{ "Thread safety", if (phpz.zts) "enabled" else "disabled" });
-    phpz.info.table.row(.{ "Replaces", "pocketmine/math, pocketmine/color" });
+    phpz.info.table.row(.{ "Namespaces", "quark\\math, quark\\color" });
     const libm_state: [*:0]const u8 = if (@import("core/root.zig").libm.native) "yes" else "no, results may differ from PHP in the last bit";
     phpz.info.table.row(.{ "C runtime math", libm_state });
     phpz.info.table.end();

@@ -30,22 +30,6 @@ fn numArg(ctx: Ctx, n: u32, comptime nullable: bool) Error!?Num {
     return error.PhpException;
 }
 
-fn floatArg(ctx: Ctx, n: u32, comptime types: []const u8) Error!f64 {
-    const zv = rt.arg(ctx, n);
-    switch (rt.ztype(zv)) {
-        rt.IS_DOUBLE => return zv.value.dval,
-        rt.IS_LONG => return @floatFromInt(zv.value.lval),
-        rt.IS_NULL => {},
-        else => {
-            var d: f64 = undefined;
-            if (c.zend_parse_arg_double_slow(zv, &d, n)) return d;
-            if (phpz.exception.hasPending()) return error.PhpException;
-        },
-    }
-    c.zend_argument_type_error(n, "must be of type " ++ types ++ ", %s given", c.zend_zval_value_name(zv));
-    return error.PhpException;
-}
-
 fn numArgs(ctx: Ctx) Error!NumVec {
     try ctx.call.expectArgCount(3, 3);
     return .{ (try numArg(ctx, 1, false)).?, (try numArg(ctx, 2, false)).?, (try numArg(ctx, 3, false)).? };
@@ -209,7 +193,8 @@ fn phpRound(v: Num, places: c_int, mode: i64) f64 {
     };
 }
 
-fn buildSides(ctx: Ctx, out: *c.zval, step: i64, skip_axis: ?i64, keys: bool) Error!void {
+/// Keyed by facing, so `foreach ($v->sides() as $facing => $side)` works.
+fn buildSides(ctx: Ctx, out: *c.zval, step: i64, skip_axis: ?i64) Error!void {
     const o = rt.this(ctx);
     rt.newArray(out, 6);
     var f: i64 = 0;
@@ -221,19 +206,8 @@ fn buildSides(ctx: Ctx, out: *c.zval, step: i64, skip_axis: ?i64, keys: bool) Er
             rt.setNull(out);
             return e;
         };
-        if (keys) {
-            _ = c.zend_hash_index_update(out.value.arr, @intCast(f), &item);
-        } else {
-            _ = c.zend_hash_next_index_insert(out.value.arr, &item);
-        }
+        _ = c.zend_hash_index_update(out.value.arr, @intCast(f), &item);
     }
-}
-
-fn arrayIterator(out: *c.zval, arr: *c.zval) Error!void {
-    const it = rt.newObject(out, rt.phpCe("spl_ce_ArrayIterator"));
-    c.zend_call_known_instance_method_with_1_params(rt.phpCe("spl_ce_ArrayIterator").*.constructor, it, null, arr);
-    c.zval_ptr_dtor(arr);
-    if (phpz.exception.hasPending()) return error.PhpException;
 }
 
 pub const Vector3 = struct {
@@ -246,18 +220,6 @@ pub const Vector3 = struct {
 
     pub fn zero(ctx: Ctx) void {
         retV3(ctx, .{ Num.i(0), Num.i(0), Num.i(0) });
-    }
-
-    pub fn getX(ctx: Ctx) Error!void {
-        rt.setNum(rt.ret(ctx), (try self3(ctx))[0]);
-    }
-
-    pub fn getY(ctx: Ctx) Error!void {
-        rt.setNum(rt.ret(ctx), (try self3(ctx))[1]);
-    }
-
-    pub fn getZ(ctx: Ctx) Error!void {
-        rt.setNum(rt.ret(ctx), (try self3(ctx))[2]);
     }
 
     pub fn getFloorX(ctx: Ctx) Error!i64 {
@@ -365,20 +327,12 @@ pub const Vector3 = struct {
     }
 
     pub fn sides(ctx: Ctx, step: ?i64) Error!void {
-        var arr: c.zval = undefined;
-        try buildSides(ctx, &arr, step orelse 1, null, true);
-        try arrayIterator(rt.ret(ctx), &arr);
-    }
-
-    pub fn sidesArray(ctx: Ctx, keys: ?bool, step: ?i64) Error!void {
-        _ = keys;
-        try buildSides(ctx, rt.ret(ctx), step orelse 1, null, false);
+        try buildSides(ctx, rt.ret(ctx), step orelse 1, null);
     }
 
     pub fn sidesAroundAxis(ctx: Ctx, axis: i64, step: ?i64) Error!void {
-        var arr: c.zval = undefined;
-        try buildSides(ctx, &arr, step orelse 1, axis, true);
-        try arrayIterator(rt.ret(ctx), &arr);
+        if (axis < 0 or axis > 2) return rt.invalidArgument("Invalid axis {d}", .{axis});
+        try buildSides(ctx, rt.ret(ctx), step orelse 1, axis);
     }
 
     pub fn asVector3(ctx: Ctx) Error!void {
@@ -393,30 +347,6 @@ pub const Vector3 = struct {
     pub fn distanceSquared(ctx: Ctx) Error!f64 {
         try ctx.call.expectArgCount(1, 1);
         return distSq3(try self3(ctx), try argV3(ctx, 1)).toFloat();
-    }
-
-    pub fn maxPlainDistance(ctx: Ctx) Error!f64 {
-        try ctx.call.expectArgCount(1, 2);
-        const v = try self3(ctx);
-        const a1 = rt.arg(ctx, 1);
-        const vec: ?ZObj = if (rt.ztype(a1) == rt.IS_OBJECT and (rt.instanceOf(a1.value.obj, v3_ce) or rt.instanceOf(a1.value.obj, v2_ce))) a1.value.obj else null;
-        var x: f64 = if (vec == null) try floatArg(ctx, 1, "pocketmine\\math\\Vector3|pocketmine\\math\\Vector2|float") else 0;
-        // $z is checked even when $x is a vector, like the PHP signature.
-        var z: f64 = if (ctx.call.argCount() >= 2) try floatArg(ctx, 2, "float") else 0;
-        if (vec) |o| {
-            if (rt.instanceOf(o, v3_ce)) {
-                const p = try readV3(o);
-                x = p[0].toFloat();
-                z = p[2].toFloat();
-            } else {
-                const p = try readV2(o);
-                x = p[0];
-                z = p[1];
-            }
-        }
-        const dx = v[0].sub(Num.f(x)).abs();
-        const dz = v[2].sub(Num.f(z)).abs();
-        return phpMax(dx, dz).toFloat();
     }
 
     pub fn length(ctx: Ctx) Error!f64 {
@@ -452,26 +382,6 @@ pub const Vector3 = struct {
         const a = try self3(ctx);
         const b = try argV3(ctx, 1);
         return a[0].toFloat() == b[0].toFloat() and a[1].toFloat() == b[1].toFloat() and a[2].toFloat() == b[2].toFloat();
-    }
-
-    fn intermediate(ctx: Ctx, comptime axis: usize) Error!void {
-        try ctx.call.expectArgCount(2, 2);
-        const a = try self3(ctx);
-        const b = try argV3(ctx, 1);
-        const value = try ctx.call.expectArg(2, .{ .float = .{} }, {});
-        if (geom.intermediate(axis, a, b, value)) |p| newV3Float(rt.ret(ctx), p);
-    }
-
-    pub fn getIntermediateWithXValue(ctx: Ctx) Error!void {
-        try intermediate(ctx, 0);
-    }
-
-    pub fn getIntermediateWithYValue(ctx: Ctx) Error!void {
-        try intermediate(ctx, 1);
-    }
-
-    pub fn getIntermediateWithZValue(ctx: Ctx) Error!void {
-        try intermediate(ctx, 2);
     }
 
     pub fn __toString(ctx: Ctx) Error!void {
@@ -622,14 +532,6 @@ pub const Vector2 = struct {
         try rt.writeNum(o, v2[1], plain, Num.f(y));
     }
 
-    pub fn getX(ctx: Ctx) Error!f64 {
-        return (try self2(ctx))[0];
-    }
-
-    pub fn getY(ctx: Ctx) Error!f64 {
-        return (try self2(ctx))[1];
-    }
-
     pub fn getFloorX(ctx: Ctx) Error!i64 {
         return num.dvalToLval(@floor((try self2(ctx))[0]));
     }
@@ -753,5 +655,5 @@ fn registerStringable(register_fn: anytype) *phpz.ClassEntry {
     return register_fn(.{.builtin("Stringable")});
 }
 
-pub const Vector2Class = phpz.Class("pocketmine\\math\\Vector2", Vector2, .{ .register = registerStringable });
-pub const Vector3Class = phpz.Class("pocketmine\\math\\Vector3", Vector3, .{ .register = registerStringable });
+pub const Vector2Class = phpz.Class("quark\\math\\Vector2", Vector2, .{ .register = registerStringable });
+pub const Vector3Class = phpz.Class("quark\\math\\Vector3", Vector3, .{ .register = registerStringable });

@@ -5,7 +5,7 @@ Simplex noise sampling and validation
 --FILE--
 <?php
 declare(strict_types=1);
-use qmath\Simplex;
+use quark\math\noise\Simplex;
 
 function t(callable $f) { try { var_dump($f()); } catch (Throwable $e) { echo get_class($e), ": ", $e->getMessage(), "\n"; } }
 
@@ -60,9 +60,9 @@ ValueError: Permutation entries must be ints between 0 and 255
 ValueError: Permutation strings must be 256 or 512 bytes
 ValueError: octaves must be between 1 and 64
 ValueError: Offsets must be finite
-TypeError: qmath\Simplex::__construct(): Argument #1 ($permutation) must be of type array|string, float given
+TypeError: quark\math\noise\Simplex::__construct(): Argument #1 ($permutation) must be of type array|string, float given
 InvalidArgumentException: samplingRate cannot be 0
 InvalidArgumentException: xSize % samplingRate must return 0
 ValueError: Sampling rates must be positive
 ValueError: Sample grid is too large
-ReflectionException: Class qmath\Simplex is an internal class marked as final that cannot be instantiated without invoking its constructor
+ReflectionException: Class quark\math\noise\Simplex is an internal class marked as final that cannot be instantiated without invoking its constructor

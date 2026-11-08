@@ -5,10 +5,10 @@ Physics formulas and spatial filters
 --FILE--
 <?php
 declare(strict_types=1);
-use pocketmine\math\AxisAlignedBB;
-use pocketmine\math\Vector3;
-use qmath\Physics;
-use qmath\Spatial;
+use quark\math\AxisAlignedBB;
+use quark\math\Vector3;
+use quark\math\physics\Physics;
+use quark\math\collision\Spatial;
 
 function t(callable $f) { try { var_dump($f()); } catch (Throwable $e) { echo get_class($e), ": ", $e->getMessage(), "\n"; } }
 
@@ -19,7 +19,7 @@ var_dump(Physics::motionStep(new Vector3(1, 0, 1), 0.02, 0.08, false, false, 0.6
 var_dump(Physics::knockBack(new Vector3(0, 1, 0), 1, 0), Physics::knockBack(new Vector3(0, 0, 0), 0, 0), Physics::knockBack(new Vector3(0, 0, 0), 0, 1, 0.5, null)->y);
 var_dump(Physics::horizontalFacing(-90.0), Physics::horizontalFacing(180.0), Physics::directionPlane(90.0));
 var_dump(Physics::lookAt(new Vector3(0, 1.62, 0), new Vector3(0, 1.62, 10)), Physics::motionRotation(new Vector3(1, 0, 0)));
-var_dump(pocketmine\math\VectorMath::getDirection3D(0.0, 90.0));
+var_dump(quark\math\VectorMath::getDirection3D(0.0, 90.0));
 $path = unpack("e*", Physics::predictTrajectory(new Vector3(0, 64, 0), new Vector3(1, 0.5, 0), 0.01, 0.05, 3, true));
 var_dump(count($path), $path[1] > 0, $path[8] < $path[2] + 1);
 t(fn() => Physics::predictTrajectory(new Vector3(0, 0, 0), new Vector3(0, 0, 0), 0.01, 0.05, -1));
@@ -36,7 +36,7 @@ t(fn() => Spatial::overlapping([new Hidden], AxisAlignedBB::one()));
 t(fn() => Spatial::overlapping([1], AxisAlignedBB::one()));
 t(fn() => Spatial::overlapping([new stdClass], AxisAlignedBB::one(), null, "missing"));
 --EXPECTF--
-object(pocketmine\math\Vector3)#2 (3) {
+object(quark\math\Vector3)#2 (3) {
   ["x"]=>
   float(0.49)
   ["y"]=>
@@ -47,7 +47,7 @@ object(pocketmine\math\Vector3)#2 (3) {
 float(0.116)
 float(0.11760000000000001)
 float(0.588)
-object(pocketmine\math\Vector3)#2 (3) {
+object(quark\math\Vector3)#2 (3) {
   ["x"]=>
   float(0.4)
   ["y"]=>
@@ -59,7 +59,7 @@ NULL
 float(0.5)
 int(5)
 int(2)
-object(pocketmine\math\Vector2)#2 (2) {
+object(quark\math\Vector2)#2 (2) {
   ["x"]=>
   float(-1)
   ["y"]=>
@@ -77,7 +77,7 @@ array(2) {
   [1]=>
   float(0)
 }
-object(pocketmine\math\Vector3)#3 (3) {
+object(quark\math\Vector3)#3 (3) {
   ["x"]=>
   float(-0)
   ["y"]=>
@@ -111,7 +111,7 @@ array(1) {
   int(0)
 }
 Error: Cannot access protected property Hidden::$boundingBox
-TypeError: qmath\Spatial::overlapping(): Argument #1 ($objects) must contain only objects, int found
+TypeError: quark\math\collision\Spatial::overlapping(): Argument #1 ($objects) must contain only objects, int found
 
 Warning: Undefined property: stdClass::$missing in %s on line %d
-TypeError: stdClass::$missing must be a pocketmine\math\AxisAlignedBB
+TypeError: stdClass::$missing must be a quark\math\AxisAlignedBB

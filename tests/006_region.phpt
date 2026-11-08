@@ -5,8 +5,8 @@ CollisionRegion storage, validation and invalidation
 --FILE--
 <?php
 declare(strict_types=1);
-use pocketmine\math\AxisAlignedBB;
-use qmath\CollisionRegion;
+use quark\math\AxisAlignedBB;
+use quark\math\collision\CollisionRegion;
 
 function t(callable $f) { try { var_dump($f()); } catch (Throwable $e) { echo get_class($e), ": ", $e->getMessage(), "\n"; } }
 
@@ -85,7 +85,7 @@ int(0)
 int(0)
 bool(false)
 int(-1)
-qmath\CollisionDataException: The query needs a cell with no collision data
+quark\math\collision\CollisionDataException: The query needs a cell with no collision data
 array(24) {
   [0]=>
   int(-1)
@@ -151,7 +151,7 @@ bool(false)
 bool(true)
 bool(true)
 bool(false)
-qmath\CollisionDataException: The query needs a cell with no collision data
+quark\math\collision\CollisionDataException: The query needs a cell with no collision data
 array(12) {
   [0]=>
   int(-1)
@@ -187,7 +187,7 @@ int(10)
 ValueError: Cell 1099511627776 0 0 is outside the supported world range
 ValueError: Invalid collision info 7
 ValueError: Invalid collision info, or boxes given for INFO_CUBE or INFO_NONE
-TypeError: qmath\CollisionRegion::setCell(): Argument #5 ($boxes) must contain only pocketmine\math\AxisAlignedBB, stdClass found
+TypeError: quark\math\collision\CollisionRegion::setCell(): Argument #5 ($boxes) must contain only quark\math\AxisAlignedBB, stdClass found
 ValueError: Too many collision boxes for one cell
 ValueError: Bounding boxes must be finite with min <= max
 ValueError: Packed boxes must be a multiple of 48 bytes
@@ -197,17 +197,17 @@ ValueError: Invalid collision info 9
 ValueError: Boxes were given for a cell that is not INFO_CUSTOM or INFO_MAY_OVERFLOW
 ValueError: Box keys must be cell indexes between 0 and 4095
 ValueError: Bounding boxes must be finite with min <= max
-qmath\CollisionDataException: The query spans too many sections
+quark\math\collision\CollisionDataException: The query spans too many sections
 ValueError: fillBox() only accepts INFO_NONE or INFO_CUBE
 ValueError: fillBox() covers too many cells
 ValueError: maxSections must be between 1 and 16777216
-qmath\CollisionDataException: The region holds its maximum number of sections
-ReflectionException: Class qmath\CollisionRegion is an internal class marked as final that cannot be instantiated without invoking its constructor
+quark\math\collision\CollisionDataException: The region holds its maximum number of sections
+ReflectionException: Class quark\math\collision\CollisionRegion is an internal class marked as final that cannot be instantiated without invoking its constructor
 bool(false)
 bool(false)
 bool(false)
 bool(true)
-qmath\CollisionDataException: The query needs a cell with no collision data
+quark\math\collision\CollisionDataException: The query needs a cell with no collision data
 array(9) {
   [0]=>
   int(-1)
@@ -240,4 +240,4 @@ int(2)
 int(1)
 int(1)
 LogicException: Cannot modify a frozen collision region
-Exception: Serialization of 'qmath\CollisionRegion' is not allowed
+Exception: Serialization of 'quark\math\collision\CollisionRegion' is not allowed

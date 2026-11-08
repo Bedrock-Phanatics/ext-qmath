@@ -5,9 +5,9 @@ Axis, Facing and Math
 --FILE--
 <?php
 declare(strict_types=1);
-use pocketmine\math\Axis;
-use pocketmine\math\Facing;
-use pocketmine\math\Math;
+use quark\math\Axis;
+use quark\math\Facing;
+use quark\math\Math;
 
 function t(callable $f) { try { var_dump($f()); } catch (Throwable $e) { echo get_class($e), ": ", $e->getMessage(), "\n"; } }
 
@@ -34,7 +34,7 @@ InvalidArgumentException: Invalid facing 9
 InvalidArgumentException: Invalid axis 3
 InvalidArgumentException: Invalid direction 6
 InvalidArgumentException: Invalid axis 3
-ReflectionException: Access to non-public constructor of class pocketmine\math\Facing
+ReflectionException: Access to non-public constructor of class quark\math\Facing
 int(-1)
 int(0)
 int(3)

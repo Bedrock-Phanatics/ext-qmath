@@ -4,13 +4,11 @@ Range checks, compaction, destructor writes and weak mode coercion
 <?php if (!extension_loaded('qmath')) die('skip qmath not loaded'); ?>
 --FILE--
 <?php
-use pocketmine\math\AxisAlignedBB as BB;
-use pocketmine\math\Matrix;
-use pocketmine\math\Vector2;
-use pocketmine\math\Vector3;
-use pocketmine\math\VoxelRayTrace;
-use qmath\CollisionRegion as R;
-use qmath\Raycast;
+use quark\math\AxisAlignedBB as BB;
+use quark\math\Vector3;
+use quark\math\VoxelRayTrace;
+use quark\math\collision\CollisionRegion as R;
+use quark\math\collision\Raycast;
 
 function t(callable $f) { try { var_dump($f()); } catch (Throwable $e) { echo get_class($e), ": ", $e->getMessage(), "\n"; } }
 function boxes(R $r, int $x) { return implode(" ", array_map(fn($b) => "$b->minY-$b->maxY", $r->getCellBoxes($x, 0, 0))); }
@@ -56,26 +54,10 @@ for ($pass = 0; $pass < 2; ++$pass) {
     try { $n = 0; foreach ($it as $_) ++$n; echo "pass $pass: $n\n"; } catch (Throwable $e) { echo "pass $pass: ", get_class($e), "\n"; }
 }
 
-// destructors that write to the matrix while an element is replaced
-class D { public function __destruct() { global $m; for ($i = 10; $i < 200; ++$i) $m[$i] = $i; } }
-$m = new Matrix(1, 2);
-$m[0] = new D;
-$m[0] = [5, 6];
-echo count($m[0]), " ", $m[199], "\n";
-$m[0] = [new D, 2];
-$m->setElement(0, 0, 1.5);
-var_dump($m->getElement(0, 0));
-$m[0] = [new D, 2];
-$m->set([[3, 4]]);
-echo $m, "\n";
-
 // int|float parameters coerce like the PHP methods in weak mode
 var_dump(new Vector3("1", "2.5", true), (new Vector3(1, 2, 3))->add("1", 2, 3)->x, (new Vector3(1, 2, 3))->withComponents("4", null, null)->x);
 t(fn() => new Vector3(null, 1, 1));
 t(fn() => (new Vector3(1, 2, 3))->subtract("a", 1, 1));
-t(fn() => (new Vector3(1, 2, 3))->maxPlainDistance(new Vector2(1, 1), "zz"));
-t(fn() => (new Vector3(1, 2, 3))->maxPlainDistance(new stdClass));
-var_dump((new Vector3(1, 2, 3))->maxPlainDistance("4", "5"));
 
 // long float strings are not truncated
 ini_set('precision', '100');
@@ -83,11 +65,11 @@ var_dump(strlen((string) new Vector3(1.2345678901234567e-200, 0, 0)), strlen((st
 ini_set('precision', '14');
 
 // grid bounds near PHP_INT_MAX and oversized explosions
-var_dump((new qmath\ResistanceGrid(PHP_INT_MAX, 0, 0, PHP_INT_MAX, 0, 0))->getBounds()[3]);
-$g = new qmath\ResistanceGrid(-1, -1, -1, 1, 1, 1);
+var_dump((new quark\math\physics\ResistanceGrid(PHP_INT_MAX, 0, 0, PHP_INT_MAX, 0, 0))->getBounds()[3]);
+$g = new quark\math\physics\ResistanceGrid(-1, -1, -1, 1, 1, 1);
 $g->fill(0);
-t(fn() => qmath\ExplosionMath::traceRays($g, new Vector3(0, 0, 0), 46, 64, 8e-5));
-$noise = new qmath\Simplex(range(0, 255), 0.0, 0.0, 0.0, 1, 0.5, 1.0);
+t(fn() => quark\math\physics\ExplosionMath::traceRays($g, new Vector3(0, 0, 0), 46, 64, 8e-5));
+$noise = new quark\math\noise\Simplex(range(0, 255), 0.0, 0.0, 0.0, 1, 0.5, 1.0);
 t(fn() => count($noise->getFastNoise1D(1 << 21, 1, 0, 0, 0)));
 --EXPECT--
 0-0.25 | 0-0.5 0.5-1 | 0
@@ -96,7 +78,7 @@ ValueError: Coordinates are outside the supported world range
 ValueError: Coordinates are outside the supported world range
 ValueError: Coordinates are outside the supported world range
 bool(true)
-qmath\CollisionDataException: The region holds its maximum number of sections
+quark\math\collision\CollisionDataException: The region holds its maximum number of sections
 bool(true)
 int(1)
 Error: CollisionRegion is already constructed
@@ -106,10 +88,7 @@ ValueError: Coordinates are outside the supported world range
 InvalidArgumentException: Start and end points are the same, giving a zero direction vector
 pass 0: InvalidArgumentException
 pass 1: 0
-2 199
-float(1.5)
-Matrix(1x2;3,4)
-object(pocketmine\math\Vector3)#5 (3) {
+object(quark\math\Vector3)#4 (3) {
   ["x"]=>
   int(1)
   ["y"]=>
@@ -119,11 +98,8 @@ object(pocketmine\math\Vector3)#5 (3) {
 }
 int(2)
 int(4)
-TypeError: pocketmine\math\Vector3::__construct(): Argument #1 ($x) must be of type int|float, null given
-TypeError: pocketmine\math\Vector3::subtract(): Argument #1 ($x) must be of type int|float, string given
-TypeError: pocketmine\math\Vector3::maxPlainDistance(): Argument #2 ($z) must be of type float, string given
-TypeError: pocketmine\math\Vector3::maxPlainDistance(): Argument #1 ($x) must be of type pocketmine\math\Vector3|pocketmine\math\Vector2|float, stdClass given
-float(3)
+TypeError: quark\math\Vector3::__construct(): Argument #1 ($x) must be of type int|float, null given
+TypeError: quark\math\Vector3::subtract(): Argument #1 ($x) must be of type int|float, string given
 int(125)
 int(136)
 int(9223372036854775807)

@@ -5,10 +5,10 @@ AxisAlignedBB mutation, validation and helpers
 --FILE--
 <?php
 declare(strict_types=1);
-use pocketmine\math\AxisAlignedBB;
-use pocketmine\math\Vector3;
-use pocketmine\math\Facing;
-use pocketmine\math\Axis;
+use quark\math\AxisAlignedBB;
+use quark\math\Vector3;
+use quark\math\Facing;
+use quark\math\Axis;
 
 function t(callable $f) { try { var_dump($f()); } catch (Throwable $e) { echo get_class($e), ": ", $e->getMessage(), "\n"; } }
 
@@ -49,7 +49,7 @@ InvalidArgumentException: Invalid Facing 6
 bool(false)
 bool(true)
 bool(true)
-object(pocketmine\math\Vector3)#6 (3) {
+object(quark\math\Vector3)#6 (3) {
   ["x"]=>
   float(0.5)
   ["y"]=>
@@ -58,7 +58,7 @@ object(pocketmine\math\Vector3)#6 (3) {
   float(0.5)
 }
 string(32) "AxisAlignedBB(-1, 0, 0, 1, 3, 1)"
-object(pocketmine\math\Vector3)#3 (3) {
+object(quark\math\Vector3)#3 (3) {
   ["x"]=>
   float(1)
   ["y"]=>
@@ -74,4 +74,4 @@ bool(false)
 bool(true)
 bool(false)
 bool(true)
-string(29) "pocketmine\math\AxisAlignedBB"
+string(24) "quark\math\AxisAlignedBB"

@@ -228,7 +228,7 @@ pub const Raycast = struct {
         while (c.zend_hash_get_current_data_ex(arr, &pos)) |raw| : (_ = c.zend_hash_move_forward_ex(arr, &pos)) {
             const zv = rt.deref(raw);
             if (rt.ztype(zv) != rt.IS_OBJECT or !rt.instanceOf(zv.value.obj, aabb.bb_ce)) {
-                c.zend_argument_type_error(3, "must contain only pocketmine\\math\\AxisAlignedBB, %s found", c.zend_zval_value_name(zv));
+                c.zend_argument_type_error(3, "must contain only quark\\math\\AxisAlignedBB, %s found", c.zend_zval_value_name(zv));
                 return error.PhpException;
             }
             const box = (try aabb.readBox(zv.value.obj)).expand(.{ e, e, e });
@@ -296,10 +296,10 @@ fn writeLong(b: *[8]u8, v: i64) void {
     std.mem.writeInt(i64, b, v, .little);
 }
 
-pub const VoxelRayTraceClass = phpz.Class("pocketmine\\math\\VoxelRayTrace", VoxelRayTrace, .{});
-pub const VoxelHitClass = phpz.Class("qmath\\VoxelHit", VoxelHit, .{ .register = registerHit });
-pub const VoxelRayIteratorClass = phpz.Class("qmath\\VoxelRayIterator", Iter, .{ .deinit = Iter.deinit, .register = registerIterator });
-pub const RaycastClass = phpz.Class("qmath\\Raycast", Raycast, .{});
+pub const VoxelRayTraceClass = phpz.Class("quark\\math\\VoxelRayTrace", VoxelRayTrace, .{});
+pub const VoxelHitClass = phpz.Class("quark\\math\\collision\\VoxelHit", VoxelHit, .{ .register = registerHit });
+pub const VoxelRayIteratorClass = phpz.Class("quark\\math\\VoxelRayIterator", Iter, .{ .deinit = Iter.deinit, .register = registerIterator });
+pub const RaycastClass = phpz.Class("quark\\math\\collision\\Raycast", Raycast, .{});
 
 fn registerHit(register_fn: anytype) *phpz.ClassEntry {
     return register_fn(.{aabb.RayTraceResultClass.entry});

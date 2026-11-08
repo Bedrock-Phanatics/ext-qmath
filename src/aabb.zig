@@ -284,23 +284,6 @@ pub const AxisAlignedBB = struct {
         return (b.max[0] - b.min[0]) * (b.max[1] - b.min[1]) * (b.max[2] - b.min[2]);
     }
 
-    fn inPlane(ctx: Ctx, comptime skip: usize) Error!bool {
-        try ctx.call.expectArgCount(1, 1);
-        return (try self(ctx)).isVectorInPlane(skip, geom.numVecToFloat(try vector.argV3(ctx, 1)));
-    }
-
-    pub fn isVectorInYZ(ctx: Ctx) Error!bool {
-        return inPlane(ctx, 0);
-    }
-
-    pub fn isVectorInXZ(ctx: Ctx) Error!bool {
-        return inPlane(ctx, 1);
-    }
-
-    pub fn isVectorInXY(ctx: Ctx) Error!bool {
-        return inPlane(ctx, 2);
-    }
-
     pub fn calculateIntercept(ctx: Ctx) Error!void {
         try ctx.call.expectArgCount(2, 2);
         const o = rt.this(ctx);
@@ -370,21 +353,6 @@ pub const AxisAlignedBB = struct {
     }
 };
 
-fn readProp(ctx: Ctx, p: rt.Prop) Error!void {
-    const o = rt.this(ctx);
-    var rv: c.zval = undefined;
-    rv.u1.type_info = rt.IS_UNDEF;
-    defer c.zval_ptr_dtor(&rv);
-    const slot = rt.deref(&rt.props(o)[p.slot]);
-    const plain = rt.plainSlots(o.ce, rtr_ce, &rtr);
-    const src = if (plain and rt.ztype(slot) != rt.IS_UNDEF) slot else blk: {
-        const r = o.handlers.*.read_property.?(o, p.name, c.BP_VAR_R, null, &rv);
-        if (phpz.exception.hasPending()) return error.PhpException;
-        break :blk rt.deref(r);
-    };
-    rt.copy(rt.ret(ctx), src);
-}
-
 pub const RayTraceResult = struct {
     pub fn __construct(ctx: Ctx) Error!void {
         try ctx.call.expectArgCount(3, 3);
@@ -398,23 +366,11 @@ pub const RayTraceResult = struct {
         try rt.writeZval(o, rtr[1], &f);
         try rt.writeZval(o, rtr[2], rt.arg(ctx, 3));
     }
-
-    pub fn getBoundingBox(ctx: Ctx) Error!void {
-        try readProp(ctx, rtr[0]);
-    }
-
-    pub fn getHitFace(ctx: Ctx) Error!void {
-        try readProp(ctx, rtr[1]);
-    }
-
-    pub fn getHitVector(ctx: Ctx) Error!void {
-        try readProp(ctx, rtr[2]);
-    }
 };
 
 fn registerStringable(register_fn: anytype) *phpz.ClassEntry {
     return register_fn(.{.builtin("Stringable")});
 }
 
-pub const AxisAlignedBBClass = phpz.Class("pocketmine\\math\\AxisAlignedBB", AxisAlignedBB, .{ .register = registerStringable });
-pub const RayTraceResultClass = phpz.Class("pocketmine\\math\\RayTraceResult", RayTraceResult, .{});
+pub const AxisAlignedBBClass = phpz.Class("quark\\math\\AxisAlignedBB", AxisAlignedBB, .{ .register = registerStringable });
+pub const RayTraceResultClass = phpz.Class("quark\\math\\RayTraceResult", RayTraceResult, .{});

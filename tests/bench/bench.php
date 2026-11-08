@@ -7,15 +7,16 @@ declare(strict_types=1);
 
 namespace qmath\test;
 
-use pocketmine\math\AxisAlignedBB;
-use pocketmine\math\Vector3;
-use pocketmine\math\VoxelRayTrace;
+use quark\math\AxisAlignedBB;
+use quark\math\Vector3;
+use quark\math\VoxelRayTrace;
 
 [, $mode, $filter] = $argv + [null, "ext", ""];
 if($mode === "ref"){
 	$src = getenv("QUARKMATH_SRC") ?: __DIR__ . "/../../../QuarkMath/src";
-	foreach(["Axis", "Facing", "Math", "Vector2", "Vector3", "VectorMath", "AxisAlignedBB", "RayTraceResult", "VoxelRayTrace", "Matrix"] as $class){
+	foreach(["Axis", "Facing", "Math", "Vector2", "Vector3", "VectorMath", "AxisAlignedBB", "RayTraceResult", "VoxelRayTrace"] as $class){
 		require "$src/$class.php";
+		class_alias("pocketmine\\math\\$class", "quark\\math\\$class");
 	}
 }
 require __DIR__ . "/../diff/lib.php";
@@ -132,7 +133,7 @@ foreach(["sparse" => 1, "dense" => 9] as $label => $seed){
 		bench("entity move $label", "native", 20_000, function(int $n) use ($region, $moves) : void{
 			for($i = 0; $i < $n; ++$i){
 				[$bb, $dx, $dy, $dz] = $moves[$i & 63];
-				\qmath\Collision::move($region, $bb, $dx, $dy, $dz, 0.6, true);
+				\quark\math\collision\CollisionSolver::move($region, $bb, $dx, $dy, $dz, 0.6, true);
 			}
 		});
 		bench("region build per cell $label", "native", 50, function(int $n) use ($world) : void{
@@ -162,7 +163,7 @@ foreach(["sparse" => 1, "dense" => 9] as $label => $seed){
 		bench("projectile block raycast $label", "native", 10_000, function(int $n) use ($region, $rays) : void{
 			for($i = 0; $i < $n; ++$i){
 				[$s, $e] = $rays[$i & 63];
-				\qmath\Raycast::blocks($region, $s, $e);
+				\quark\math\collision\Raycast::blocks($region, $s, $e);
 			}
 		});
 		$packed = "";
@@ -171,7 +172,7 @@ foreach(["sparse" => 1, "dense" => 9] as $label => $seed){
 		}
 		bench("projectile block raycast $label", "native batch", 10_000, function(int $n) use ($region, $packed) : void{
 			for($i = 0; $i < $n; $i += 64){
-				\qmath\Raycast::batchBlocks($region, $packed);
+				\quark\math\collision\Raycast::batchBlocks($region, $packed);
 			}
 		});
 	}
@@ -185,7 +186,7 @@ foreach(["sparse" => 1, "dense" => 9] as $label => $seed){
 	if($native){
 		bench("explosion exposure $label", "native", 64, function(int $n) use ($region, $origin, $targets) : void{
 			for($i = 0; $i < $n; ++$i){
-				\qmath\ExplosionMath::exposure($region, $origin, $targets[$i & 15]);
+				\quark\math\physics\ExplosionMath::exposure($region, $origin, $targets[$i & 15]);
 			}
 		});
 	}
@@ -217,14 +218,14 @@ bench("explosion rays radius 4", "php", 20, function(int $n) use ($res, $source)
 	}
 });
 if($native){
-	$grid = new \qmath\ResistanceGrid(-$span, -$span, -$span, $span, $span, $span);
+	$grid = new \quark\math\physics\ResistanceGrid(-$span, -$span, -$span, $span, $span, $span);
 	foreach($res as $key => $v){
 		[$x, $y, $z] = array_map('intval', explode(":", $key));
 		$grid->set($x, $y, $z, $v);
 	}
 	bench("explosion rays radius 4", "native", 20, function(int $n) use ($grid, $source) : void{
 		for($i = 0; $i < $n; ++$i){
-			\qmath\ExplosionMath::traceRays($grid, $source, 4.0);
+			\quark\math\physics\ExplosionMath::traceRays($grid, $source, 4.0);
 		}
 	});
 }
@@ -242,7 +243,7 @@ bench("noise chunk 16x128x16", "php", 10, function(int $n) use ($ref) : void{
 	}
 });
 if($native){
-	$s = new \qmath\Simplex($perm, 10.0, 20.0, 30.0, 4, 0.25, 1 / 32);
+	$s = new \quark\math\noise\Simplex($perm, 10.0, 20.0, 30.0, 4, 0.25, 1 / 32);
 	bench("noise chunk 16x128x16", "native", 10, function(int $n) use ($s) : void{
 		for($i = 0; $i < $n; ++$i){
 			$s->getFastNoise3D(16, 128, 16, 4, 8, 4, $i * 16, 0, 0);
@@ -269,7 +270,7 @@ bench("nearby entities filter 500", "php", 2_000, function(int $n) use ($entitie
 if($native){
 	bench("nearby entities filter 500", "native", 2_000, function(int $n) use ($entities, $query) : void{
 		for($i = 0; $i < $n; ++$i){
-			\qmath\Spatial::overlapping($entities, $query);
+			\quark\math\collision\Spatial::overlapping($entities, $query);
 		}
 	});
 }
@@ -282,7 +283,7 @@ bench("motion step", "php", 500_000, function(int $n) use ($vectors) : void{
 if($native){
 	bench("motion step", "native", 500_000, function(int $n) use ($vectors) : void{
 		for($i = 0; $i < $n; ++$i){
-			\qmath\Physics::motionStep($vectors[$i & 255], 0.02, 0.08);
+			\quark\math\physics\Physics::motionStep($vectors[$i & 255], 0.02, 0.08);
 		}
 	});
 }

@@ -1,13 +1,13 @@
 --TEST--
-Collision::move against blocks, slabs, stairs, fences and gaps
+CollisionSolver::move against blocks, slabs, stairs, fences and gaps
 --SKIPIF--
 <?php if (!extension_loaded('qmath')) die('skip qmath not loaded'); ?>
 --FILE--
 <?php
 declare(strict_types=1);
-use pocketmine\math\AxisAlignedBB;
-use qmath\Collision;
-use qmath\CollisionRegion as R;
+use quark\math\AxisAlignedBB;
+use quark\math\collision\CollisionSolver;
+use quark\math\collision\CollisionRegion as R;
 
 function t(callable $f) { try { var_dump($f()); } catch (Throwable $e) { echo get_class($e), ": ", $e->getMessage(), "\n"; } }
 
@@ -29,47 +29,47 @@ function player(float $x, float $y, float $z, float $w = 0.6, float $h = 1.8) : 
     return new AxisAlignedBB($x - $w / 2, $y, $z - $w / 2, $x + $w / 2, $y + $h, $z + $w / 2);
 }
 
-function show(string $label, qmath\MoveResult $m) : void {
+function show(string $label, quark\math\collision\MoveResult $m) : void {
     printf("%-14s d=(%.4f %.4f %.4f) min=(%.4f %.4f %.4f) h=%d v=%d ground=%d step=%d xyz=%d%d%d\n", $label, $m->dx, $m->dy, $m->dz,
         $m->boundingBox->minX, $m->boundingBox->minY, $m->boundingBox->minZ,
         $m->collidedHorizontally, $m->collidedVertically, $m->onGround, $m->stepped, $m->collidedX, $m->collidedY, $m->collidedZ);
 }
 
 $r = world();
-show("land", Collision::move($r, player(0.5, 64.3, 0.5), 0, -0.5, 0));
-show("fall fast", Collision::move($r, player(0.5, 70, 0.5), 0, -15, 0, 0.6, false));
-show("slab step", Collision::move($r, player(1.5, 64, 0.5), 0.6, 0, 0, 0.6, true));
-show("slab no step", Collision::move($r, player(1.5, 64, 0.5), 0.6, 0, 0, 0.0, true));
-show("stairs", Collision::move($r, player(3.5, 64, 0.5), 0.6, 0, 0, 0.6, true));
-show("fence", Collision::move($r, player(5.5, 64, 0.5), 0.6, 0, 0, 0.6, true));
-show("corner", Collision::move($r, player(0.5, 64, 0.5), -1.0, 0, -1.0, 0.6, true));
-show("ceiling", Collision::move($r, player(0.5, 64, 5.5), 0, 0.5, 0));
-show("gap fits", Collision::move($r, player(9.5, 64, 1.5, 0.6, 1.8), 1.5, 0, 0, 0.6, true));
-show("gap too thin", Collision::move($r, player(8.5, 64, 1.5, 1.2, 1.8), 1.5, 0, 0, 0.6, true));
-show("negative", Collision::move($r, player(-15.5, 64.2, -15.5), -0.3, -0.4, -0.3));
-show("diagonal", Collision::move($r, player(0.5, 64, 0.5), 3.0, -0.08, 0.2, 0.6, true));
-show("airborne", Collision::move($r, player(0.5, 66, 0.5), 0.2, 0.3, 0.2));
+show("land", CollisionSolver::move($r, player(0.5, 64.3, 0.5), 0, -0.5, 0));
+show("fall fast", CollisionSolver::move($r, player(0.5, 70, 0.5), 0, -15, 0, 0.6, false));
+show("slab step", CollisionSolver::move($r, player(1.5, 64, 0.5), 0.6, 0, 0, 0.6, true));
+show("slab no step", CollisionSolver::move($r, player(1.5, 64, 0.5), 0.6, 0, 0, 0.0, true));
+show("stairs", CollisionSolver::move($r, player(3.5, 64, 0.5), 0.6, 0, 0, 0.6, true));
+show("fence", CollisionSolver::move($r, player(5.5, 64, 0.5), 0.6, 0, 0, 0.6, true));
+show("corner", CollisionSolver::move($r, player(0.5, 64, 0.5), -1.0, 0, -1.0, 0.6, true));
+show("ceiling", CollisionSolver::move($r, player(0.5, 64, 5.5), 0, 0.5, 0));
+show("gap fits", CollisionSolver::move($r, player(9.5, 64, 1.5, 0.6, 1.8), 1.5, 0, 0, 0.6, true));
+show("gap too thin", CollisionSolver::move($r, player(8.5, 64, 1.5, 1.2, 1.8), 1.5, 0, 0, 0.6, true));
+show("negative", CollisionSolver::move($r, player(-15.5, 64.2, -15.5), -0.3, -0.4, -0.3));
+show("diagonal", CollisionSolver::move($r, player(0.5, 64, 0.5), 3.0, -0.08, 0.2, 0.6, true));
+show("airborne", CollisionSolver::move($r, player(0.5, 66, 0.5), 0.2, 0.3, 0.2));
 
-t(fn() => Collision::move($r, player(0.5, 64, 0.5), NAN, 0, 0));
-t(fn() => Collision::move($r, player(0.5, 64, 0.5), 0, 0, 0, INF));
-t(fn() => Collision::move($r, player(0.5, 64, 0.5), 0, -100, 0));
-t(fn() => Collision::move(new R(), player(0.5, 0, 0.5), 0, 0, 0));
+t(fn() => CollisionSolver::move($r, player(0.5, 64, 0.5), NAN, 0, 0));
+t(fn() => CollisionSolver::move($r, player(0.5, 64, 0.5), 0, 0, 0, INF));
+t(fn() => CollisionSolver::move($r, player(0.5, 64, 0.5), 0, -100, 0));
+t(fn() => CollisionSolver::move(new R(), player(0.5, 0, 0.5), 0, 0, 0));
 
 // prefetch: the query box covers the step retry too, missingSections() lists what to load
-$q = Collision::queryBox(player(0.5, 64, 0.5), 0.4, -0.08, 0.0, 0.6);
+$q = CollisionSolver::queryBox(player(0.5, 64, 0.5), 0.4, -0.08, 0.0, 0.6);
 echo $q, "
 ";
 var_dump(count(world()->missingSections($q)), count((new R())->missingSections($q)) / 3);
-$m = Collision::move($r, player(0.5, 64, 0.5), 0, 0, 0);
+$m = CollisionSolver::move($r, player(0.5, 64, 0.5), 0, 0, 0);
 t(fn() => $m->dx = 1.0);
 
 // continuous sweeps catch thin obstacles at any speed
-$s = Collision::sweep($r, player(-10.5, 64, 0.5), 30, 0, 0);
+$s = CollisionSolver::sweep($r, player(-10.5, 64, 0.5), 30, 0, 0);
 var_dump($s->face, round($s->time, 6), (string) $s->box, $s->key);
-var_dump(Collision::sweep($r, player(0.5, 66, 0.5), 0, 1, 0));
-$s = Collision::sweepBoxes(player(0, 0, 0), 0, 0, 100, ['a' => new AxisAlignedBB(-1, 0, 50, 1, 2, 50.1), 'b' => new AxisAlignedBB(-1, 0, 20, 1, 2, 20.1)]);
+var_dump(CollisionSolver::sweep($r, player(0.5, 66, 0.5), 0, 1, 0));
+$s = CollisionSolver::sweepBoxes(player(0, 0, 0), 0, 0, 100, ['a' => new AxisAlignedBB(-1, 0, 50, 1, 2, 50.1), 'b' => new AxisAlignedBB(-1, 0, 20, 1, 2, 20.1)]);
 var_dump($s->key, $s->face, round($s->time, 6));
-var_dump(Collision::sweepBoxes(player(0, 0, 0), 1, 0, 0, [new AxisAlignedBB(0, 0, 0, 1, 1, 1)])->face);
+var_dump(CollisionSolver::sweepBoxes(player(0, 0, 0), 1, 0, 0, [new AxisAlignedBB(0, 0, 0, 1, 1, 1)])->face);
 --EXPECT--
 land           d=(0.0000 -0.3000 0.0000) min=(0.2000 64.0000 0.2000) h=0 v=1 ground=1 step=0 xyz=010
 fall fast      d=(0.0000 -6.0000 0.0000) min=(0.2000 64.0000 0.2000) h=0 v=1 ground=1 step=0 xyz=010
@@ -86,12 +86,12 @@ diagonal       d=(3.0000 0.0000 0.2000) min=(3.2000 64.0000 0.4000) h=0 v=1 grou
 airborne       d=(0.2000 0.3000 0.2000) min=(0.4000 66.3000 0.4000) h=0 v=0 ground=0 step=0 xyz=000
 ValueError: dx must be finite
 ValueError: stepHeight must be finite
-qmath\CollisionDataException: The query needs a cell with no collision data
-qmath\CollisionDataException: The query needs a cell with no collision data
+quark\math\collision\CollisionDataException: The query needs a cell with no collision data
+quark\math\collision\CollisionDataException: The query needs a cell with no collision data
 AxisAlignedBB(0.2, 63.92, 0.2, 1.2, 66.4, 0.8)
 int(12)
 int(8)
-Error: Cannot modify readonly property qmath\MoveResult::$dx
+Error: Cannot modify readonly property quark\math\collision\MoveResult::$dx
 int(4)
 float(0.406667)
 string(35) "AxisAlignedBB(2, 64, 0, 3, 64.5, 1)"

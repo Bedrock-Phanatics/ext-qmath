@@ -64,7 +64,7 @@ pub const Spatial = struct {
             if (phpz.exception.hasPending()) return error.PhpException;
             const bbz = rt.deref(res);
             if (rt.ztype(bbz) != rt.IS_OBJECT or !rt.instanceOf(bbz.value.obj, aabb.bb_ce)) {
-                return rt.typeError("%s::$%s must be a pocketmine\\math\\AxisAlignedBB", .{ rt.zstrC(o.ce.*.name), rt.zstrC(name) });
+                return rt.typeError("%s::$%s must be a quark\\math\\AxisAlignedBB", .{ rt.zstrC(o.ce.*.name), rt.zstrC(name) });
             }
             const b = try aabb.readBox(bbz.value.obj);
             if (b.intersects(query, eps)) {
@@ -90,7 +90,7 @@ pub const Spatial = struct {
         c.zend_hash_internal_pointer_reset_ex(arr, &pos);
         while (c.zend_hash_get_current_data_ex(arr, &pos)) |raw| : (_ = c.zend_hash_move_forward_ex(arr, &pos)) {
             const zv = rt.deref(raw);
-            if (rt.ztype(zv) != rt.IS_OBJECT or !rt.instanceOf(zv.value.obj, aabb.bb_ce)) return typeErrorArg(2, "must contain only pocketmine\\math\\AxisAlignedBB, %s found", zv);
+            if (rt.ztype(zv) != rt.IS_OBJECT or !rt.instanceOf(zv.value.obj, aabb.bb_ce)) return typeErrorArg(2, "must contain only quark\\math\\AxisAlignedBB, %s found", zv);
             if ((try aabb.readBox(zv.value.obj)).intersects(query, eps)) {
                 var key: c.zval = undefined;
                 c.zend_hash_get_current_key_zval_ex(arr, &key, &pos);
@@ -193,5 +193,5 @@ pub const Physics = struct {
     }
 };
 
-pub const SpatialClass = phpz.Class("qmath\\Spatial", Spatial, .{});
-pub const PhysicsClass = phpz.Class("qmath\\Physics", Physics, .{});
+pub const SpatialClass = phpz.Class("quark\\math\\collision\\Spatial", Spatial, .{});
+pub const PhysicsClass = phpz.Class("quark\\math\\physics\\Physics", Physics, .{});

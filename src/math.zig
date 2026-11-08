@@ -94,7 +94,7 @@ pub const rotateFacing = rotate;
 /// PHP would overflow to float and fail the int return type.
 fn stepInt(ctx: Ctx, i: i64, delta: i64, comptime name: []const u8) Error!void {
     const r = @addWithOverflow(i, delta);
-    if (r[1] != 0) return rt.typeError("pocketmine\\math\\Math::" ++ name ++ "(): Return value must be of type int, float returned", .{});
+    if (r[1] != 0) return rt.typeError("quark\\math\\Math::" ++ name ++ "(): Return value must be of type int, float returned", .{});
     rt.setLong(rt.ret(ctx), r[0]);
 }
 
@@ -173,10 +173,10 @@ pub const VectorMath = struct {
     }
 };
 
-pub const AxisClass = phpz.Class("pocketmine\\math\\Axis", Axis, .{});
-pub const FacingClass = phpz.Class("pocketmine\\math\\Facing", Facing, .{});
-pub const MathClass = phpz.Class("pocketmine\\math\\Math", Math, .{});
-pub const VectorMathClass = phpz.Class("pocketmine\\math\\VectorMath", VectorMath, .{});
+pub const AxisClass = phpz.Class("quark\\math\\Axis", Axis, .{});
+pub const FacingClass = phpz.Class("quark\\math\\Facing", Facing, .{});
+pub const MathClass = phpz.Class("quark\\math\\Math", Math, .{});
+pub const VectorMathClass = phpz.Class("quark\\math\\VectorMath", VectorMath, .{});
 
 var facing_arrays: [9]?*c.zend_array = @splat(null);
 
