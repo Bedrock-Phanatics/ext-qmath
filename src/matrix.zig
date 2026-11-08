@@ -91,7 +91,15 @@ fn setRaw(arr: *c.zend_array, r: i64, col: i64, value: *c.zval) Error!void {
         row.value.arr = dup;
         row.u1.type_info = c.IS_ARRAY_EX;
     }
-    _ = c.zend_hash_index_update(row.value.arr, @bitCast(col), value);
+    store(row.value.arr, col, value);
+}
+
+/// `$arr[$k] = $v`. The old value is released last because its destructor may modify the array.
+fn store(arr: *c.zend_array, k: i64, v: *c.zval) void {
+    const slot: *c.zval = c.zend_hash_index_lookup(arr, @bitCast(k));
+    var old = slot.*;
+    slot.* = v.*;
+    c.zval_ptr_dtor(&old);
 }
 
 fn floatParam(zv: *c.zval) Error!f64 {
@@ -184,7 +192,7 @@ fn setFrom(o: ZObj, m: ?*c.zend_array) Error!void {
             c.zval_ptr_dtor(&row);
             return e;
         };
-        _ = c.zend_hash_index_update(arr, @bitCast(r), &row);
+        store(arr, r, &row);
     }
 }
 
@@ -244,7 +252,7 @@ pub const Matrix = struct {
         const arr = try writable(rt.this(ctx));
         var v: c.zval = undefined;
         rt.copy(&v, rt.deref(rt.arg(ctx, 2)));
-        _ = c.zend_hash_index_update(arr, @bitCast(k), &v);
+        store(arr, k, &v);
     }
 
     pub fn offsetUnset(ctx: Ctx) Error!void {
