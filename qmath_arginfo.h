@@ -1,5 +1,5 @@
 /* This is a generated file, edit the .stub.php file instead.
- * Stub hash: 76dd338a1ba5711f5837f2395a35bd1e3da2a471 */
+ * Stub hash: cef4e32340b3ba0331eeb2ea9419d42df0f5c03d */
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_class_quark_math_Axis___construct, 0, 0, 0)
 ZEND_END_ARG_INFO()
@@ -726,6 +726,15 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_quark_math_physics_Resista
 	ZEND_ARG_TYPE_INFO(0, resistance, IS_DOUBLE, 0)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_quark_math_physics_ResistanceGrid_setSectionPalette, 0, 6, IS_VOID, 0)
+	ZEND_ARG_TYPE_INFO(0, sectionX, IS_LONG, 0)
+	ZEND_ARG_TYPE_INFO(0, sectionY, IS_LONG, 0)
+	ZEND_ARG_TYPE_INFO(0, sectionZ, IS_LONG, 0)
+	ZEND_ARG_TYPE_INFO(0, bitsPerBlock, IS_LONG, 0)
+	ZEND_ARG_TYPE_INFO(0, words, IS_STRING, 0)
+	ZEND_ARG_TYPE_INFO(0, resistances, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_quark_math_physics_ResistanceGrid_setPacked, 0, 1, IS_VOID, 0)
 	ZEND_ARG_TYPE_INFO(0, values, IS_STRING, 0)
 ZEND_END_ARG_INFO()
@@ -1097,6 +1106,7 @@ ZEND_METHOD(quark_math_physics_ResistanceGrid, getBounds);
 ZEND_METHOD(quark_math_physics_ResistanceGrid, set);
 ZEND_METHOD(quark_math_physics_ResistanceGrid, setInvalid);
 ZEND_METHOD(quark_math_physics_ResistanceGrid, fill);
+ZEND_METHOD(quark_math_physics_ResistanceGrid, setSectionPalette);
 ZEND_METHOD(quark_math_physics_ResistanceGrid, setPacked);
 ZEND_METHOD(quark_math_physics_ExplosionMath, __construct);
 ZEND_METHOD(quark_math_physics_ExplosionMath, traceRays);
@@ -1396,6 +1406,7 @@ static const zend_function_entry class_quark_math_physics_ResistanceGrid_methods
 	ZEND_ME(quark_math_physics_ResistanceGrid, set, arginfo_class_quark_math_physics_ResistanceGrid_set, ZEND_ACC_PUBLIC)
 	ZEND_ME(quark_math_physics_ResistanceGrid, setInvalid, arginfo_class_quark_math_physics_ResistanceGrid_setInvalid, ZEND_ACC_PUBLIC)
 	ZEND_ME(quark_math_physics_ResistanceGrid, fill, arginfo_class_quark_math_physics_ResistanceGrid_fill, ZEND_ACC_PUBLIC)
+	ZEND_ME(quark_math_physics_ResistanceGrid, setSectionPalette, arginfo_class_quark_math_physics_ResistanceGrid_setSectionPalette, ZEND_ACC_PUBLIC)
 	ZEND_ME(quark_math_physics_ResistanceGrid, setPacked, arginfo_class_quark_math_physics_ResistanceGrid_setPacked, ZEND_ACC_PUBLIC)
 	ZEND_FE_END
 };

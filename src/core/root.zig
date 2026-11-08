@@ -4,6 +4,7 @@ pub const num = @import("num.zig");
 pub const libm = @import("libm.zig");
 pub const geom = @import("geom.zig");
 pub const voxel = @import("voxel.zig");
+pub const palette = @import("palette.zig");
 pub const collision = @import("collision.zig");
 pub const raycast = @import("raycast.zig");
 pub const explosion = @import("explosion.zig");

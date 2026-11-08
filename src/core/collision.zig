@@ -609,27 +609,11 @@ pub fn collectBoxes(region: *const Region, allocator: Allocator, query: Box, lis
     try region.collisionBoxes(query, &sink);
 }
 
-/// Expands a PalettedBlockArray word array (little-endian u32 words, cells in localIndex() order) through `palette`.
+/// Expands a PalettedBlockArray word array through `palette`, cells in localIndex() order.
 pub fn decodePalette(bits_per_block: i64, words: []const u8, palette: []const Info, out: *[section_cells]Info) error{InvalidPalette}!void {
-    if (palette.len == 0 or palette.len > section_cells) return error.InvalidPalette;
-    if (bits_per_block == 0) {
-        if (words.len != 0 or palette.len != 1) return error.InvalidPalette;
-        @memset(out, palette[0]);
-        return;
-    }
-    const bpb: u5 = switch (bits_per_block) {
-        1, 2, 3, 4, 5, 6, 8, 16 => @intCast(bits_per_block),
-        else => return error.InvalidPalette,
-    };
-    const per_word: usize = 32 / @as(usize, bpb);
-    if (words.len != (section_cells + per_word - 1) / per_word * 4) return error.InvalidPalette;
-    const mask: u32 = (@as(u32, 1) << bpb) - 1;
-    for (out, 0..) |*o, i| {
-        const word = std.mem.readInt(u32, words[i / per_word * 4 ..][0..4], .little);
-        const idx = (word >> @intCast((i % per_word) * bpb)) & mask;
-        if (idx >= palette.len) return error.InvalidPalette;
-        o.* = palette[idx];
-    }
+    var indexes: [section_cells]u16 = undefined;
+    try @import("palette.zig").decode(bits_per_block, words, palette.len, &indexes);
+    for (out, indexes) |*o, i| o.* = palette[i];
 }
 
 /// Covers every query move() may make, for prefetching.
@@ -860,32 +844,6 @@ test "partial sections report their unknown cells" {
     var lk = Lookup{};
     try testing.expectEqual(Info.cube, try r.cellInfo(&lk, 0, 16, 0));
     try testing.expectError(error.OutOfRange, r.setSectionInfos(1 << 22, 0, 0, &infos));
-}
-
-test "palettes decode in word order" {
-    var out: [section_cells]Info = undefined;
-    const pal = [_]Info{ .none, .cube, .custom };
-    var words: [256 * 4]u8 = @splat(0);
-    // 2 bits per block, 16 per word: cell 1 is palette entry 1 and cell 17 is entry 2
-    words[0] = 0b0100;
-    words[4] = 0b1000;
-    try decodePalette(2, &words, &pal, &out);
-    try testing.expectEqual(Info.none, out[0]);
-    try testing.expectEqual(Info.cube, out[1]);
-    try testing.expectEqual(Info.custom, out[17]);
-    try decodePalette(0, "", pal[1..2], &out);
-    try testing.expect(std.mem.allEqual(Info, &out, .cube));
-    words[0] = 0b1100;
-    try testing.expectError(error.InvalidPalette, decodePalette(2, &words, &pal, &out));
-    try testing.expectError(error.InvalidPalette, decodePalette(2, words[0..8], &pal, &out));
-    try testing.expectError(error.InvalidPalette, decodePalette(7, &words, &pal, &out));
-    try testing.expectError(error.InvalidPalette, decodePalette(0, "", &pal, &out));
-    // 3 bits per block leaves 2 bits of padding per word
-    var w3: [410 * 4]u8 = @splat(0);
-    w3[4] = 0b010;
-    try decodePalette(3, &w3, &pal, &out);
-    try testing.expectEqual(Info.custom, out[10]);
-    try testing.expectEqual(Info.none, out[9]);
 }
 
 test "fence overflow boxes come from neighbouring cells" {

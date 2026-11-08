@@ -64,6 +64,19 @@ pub const Grid = struct {
         (try self.get()).fill(resistance) catch return rt.valueError("Resistance must not be NAN", .{});
     }
 
+    pub fn setSectionPalette(self: *Grid, sx: i64, sy: i64, sz: i64, bits_per_block: i64, words: []const u8, resistances: []const u8) Error!void {
+        const g = (try self.get());
+        if (resistances.len == 0 or resistances.len % 8 != 0 or resistances.len > core.palette.section_cells * 8) {
+            return rt.valueError("resistances must hold between 1 and 4096 doubles", .{});
+        }
+        var values: [core.palette.section_cells]f64 = undefined;
+        const n = resistances.len / 8;
+        for (values[0..n], 0..) |*v, i| v.* = region.readDouble(resistances[i * 8 ..][0..8]);
+        var indexes: [core.palette.section_cells]u16 = undefined;
+        core.palette.decode(bits_per_block, words, n, &indexes) catch return rt.valueError("Word array does not match {d} bits per block and the palette", .{bits_per_block});
+        g.setSection(sx, sy, sz, &indexes, values[0..n]) catch return rt.valueError("Section {d} {d} {d} is out of range", .{ sx, sy, sz });
+    }
+
     pub fn setPacked(self: *Grid, values: []const u8) Error!void {
         const g = (try self.get());
         if (values.len != g.cellCount() * 8) return rt.valueError("Expected {d} bytes, one double per cell", .{g.cellCount() * 8});

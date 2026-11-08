@@ -3,6 +3,7 @@ const Allocator = std.mem.Allocator;
 const num = @import("num.zig");
 const Num = num.Num;
 const NumVec = @import("geom.zig").NumVec;
+const palette = @import("palette.zig");
 
 const pow = @import("libm.zig").powFn;
 
@@ -78,6 +79,37 @@ pub const Grid = struct {
         if (std.math.isNan(resistance)) return error.InvalidArgument;
         @memset(self.values, resistance);
         @memset(self.states, .known);
+    }
+
+    /// Fills the cells of a 16^3 chunk section that lie inside the grid, from palette indexes in section order.
+    /// A NaN palette value marks its cells invalid.
+    pub fn setSection(self: *Grid, sx: i64, sy: i64, sz: i64, indexes: *const [palette.section_cells]u16, values: []const f64) Error!void {
+        const base = [3]i64{ sx *% 16, sy *% 16, sz *% 16 };
+        var lo: [3]i64 = undefined;
+        var hi: [3]i64 = undefined;
+        for (0..3) |a| {
+            if (base[a] >> 4 != ([3]i64{ sx, sy, sz })[a]) return error.OutOfRange;
+            lo[a] = @max(base[a], self.min[a]);
+            hi[a] = @min(base[a] + 15, self.min[a] + self.size[a] - 1);
+            if (lo[a] > hi[a]) return;
+        }
+        var x = lo[0];
+        while (x <= hi[0]) : (x += 1) {
+            var z = lo[2];
+            while (z <= hi[2]) : (z += 1) {
+                var y = lo[1];
+                while (y <= hi[1]) : (y += 1) {
+                    const v = values[indexes[palette.localIndex(@intCast(x - base[0]), @intCast(y - base[1]), @intCast(z - base[2]))]];
+                    const i = self.index(x, y, z).?;
+                    if (std.math.isNan(v)) {
+                        self.states[i] = .invalid;
+                    } else {
+                        self.values[i] = v;
+                        self.states[i] = .known;
+                    }
+                }
+            }
+        }
     }
 
     /// One value per cell in index order, NaN marks an invalid cell.
@@ -222,6 +254,22 @@ const FixedRng = struct {
         return self.value;
     }
 };
+
+test "sections fill the overlapping part of the grid" {
+    var g = try Grid.init(testing.allocator, .{ -2, 14, 30 }, .{ 2, 17, 33 });
+    defer g.deinit();
+    var idx: [palette.section_cells]u16 = @splat(0);
+    idx[palette.localIndex(15, 15, 0)] = 1;
+    try g.setSection(-1, 0, 2, &idx, &.{ 0.5, std.math.nan(f64) });
+    try testing.expectEqual(State.invalid, g.states[g.index(-1, 15, 32).?]);
+    try testing.expectEqual(State.known, g.states[g.index(-2, 14, 32).?]);
+    try testing.expectEqual(@as(f64, 0.5), g.values[g.index(-2, 14, 32).?]);
+    try testing.expectEqual(State.unknown, g.states[g.index(0, 15, 32).?]);
+    try testing.expectEqual(State.unknown, g.states[g.index(-1, 16, 32).?]);
+    try testing.expectEqual(State.unknown, g.states[g.index(-1, 15, 30).?]);
+    try g.setSection(100, 0, 0, &idx, &.{ 0.5, 1 });
+    try testing.expectError(error.OutOfRange, g.setSection(std.math.maxInt(i64), 0, 0, &idx, &.{ 0.5, 1 }));
+}
 
 test "ray count matches the hollow cube of rays" {
     try testing.expectEqual(@as(i64, 1352), rayCount(16));
