@@ -381,7 +381,13 @@ pub const Vector3 = struct {
         try ctx.call.expectArgCount(1, 1);
         const a = try self3(ctx);
         const b = try argV3(ctx, 1);
-        return a[0].toFloat() == b[0].toFloat() and a[1].toFloat() == b[1].toFloat() and a[2].toFloat() == b[2].toFloat();
+        return looseEq(a[0], b[0]) and looseEq(a[1], b[1]) and looseEq(a[2], b[2]);
+    }
+
+    /// PHP `==`: two ints compare exactly, anything mixed compares as doubles.
+    fn looseEq(a: Num, b: Num) bool {
+        if (a == .int and b == .int) return a.int == b.int;
+        return a.toFloat() == b.toFloat();
     }
 
     pub fn __toString(ctx: Ctx) Error!void {
