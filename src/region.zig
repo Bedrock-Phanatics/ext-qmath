@@ -128,14 +128,14 @@ pub const Backing = struct {
             const list = try ctx.call.expectArg(5, .{ .array = .{} }, {});
             n = try readBoxList(list.ptr(), &buf, 5);
         }
-        (try self.get()).setCell(x, y, z, info, buf[0..n]) catch |e| return fail(e);
+        (try self.get()).setCell(x, y, z, info, buf[0..n]) catch |e| return cellFail(e, x, y, z);
     }
 
     pub fn setCellPacked(self: *Backing, x: i64, y: i64, z: i64, info: i64, boxes: []const u8) Error!void {
         const kind = try parseInfo(info);
         var buf: [collision.max_boxes_per_cell]Box = undefined;
         const n = try readPackedBoxes(boxes, &buf);
-        (try self.get()).setCell(x, y, z, kind, buf[0..n]) catch |e| return fail(e);
+        (try self.get()).setCell(x, y, z, kind, buf[0..n]) catch |e| return cellFail(e, x, y, z);
     }
 
     pub fn fill(self: *Backing, info: i64) Error!void {
@@ -194,6 +194,11 @@ pub const Backing = struct {
         return @intFromEnum(info);
     }
 };
+
+fn cellFail(err: anyerror, x: i64, y: i64, z: i64) Error {
+    if (err == error.OutOfRange) return rt.valueError("Cell {d} {d} {d} is outside the region", .{ x, y, z });
+    return fail(err);
+}
 
 fn parseInfo(v: i64) Error!collision.Info {
     return collision.Info.fromInt(v) orelse rt.valueError("Invalid collision info {d}", .{v});
