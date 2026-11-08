@@ -28,7 +28,7 @@ const State = enum { zero_length, fresh, running, done };
 
 pub const Iter = struct {
     ray: voxel.Ray = undefined,
-    initial: voxel.Ray = undefined,
+    initial: ?voxel.Ray = null,
     state: State = .done,
     index: i64 = 0,
     cached: c.zval = std.mem.zeroes(c.zval),
@@ -53,10 +53,11 @@ pub const Iter = struct {
     fn restart(self: *Iter) Error!void {
         self.drop();
         if (self.state == .zero_length) {
+            // Like a generator that threw, later traversals yield nothing.
             self.state = .done;
             return rt.invalidArgument(voxel.zero_length_message, .{});
         }
-        self.ray = self.initial;
+        self.ray = self.initial orelse return;
         self.index = 0;
         self.state = .running;
     }

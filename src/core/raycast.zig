@@ -43,6 +43,8 @@ pub const BlockHit = struct {
 /// voxel whose own collision boxes intercept the segment.
 pub fn firstBlock(region: *const Region, start: NumVec, end: NumVec) Error!?BlockHit {
     var ray = try voxel.Ray.init(start, end);
+    // A non-finite length never ends, and nothing can interrupt a native loop.
+    if (!std.math.isFinite(ray.radius)) return error.OutOfRange;
     var scratch: Box = undefined;
     var lk = collision.Lookup{};
     while (true) {
@@ -54,6 +56,7 @@ pub fn firstBlock(region: *const Region, start: NumVec, end: NumVec) Error!?Bloc
 }
 
 const max_samples_per_axis = 1024;
+const max_samples = 1 << 22;
 
 /// Explosion::getExposure(): the fraction of sample points in `bb` with an unobstructed line to `origin`.
 pub fn exposure(region: *const Region, origin: NumVec, bb: Box) Error!f64 {
@@ -65,6 +68,7 @@ pub fn exposure(region: *const Region, origin: NumVec, bb: Box) Error!f64 {
         if (!(diff[a] <= max_samples_per_axis)) return error.TooManySamples;
         step[a] = 1.0 / diff[a];
     }
+    if ((diff[0] + 1) * (diff[1] + 1) * (diff[2] + 1) > max_samples) return error.TooManySamples;
     const x_offset = (1.0 - (@floor(diff[0]) / diff[0])) / 2.0;
     const z_offset = (1.0 - (@floor(diff[2]) / diff[2])) / 2.0;
 
@@ -147,4 +151,5 @@ test "unknown voxels on the path are errors" {
     try r.setCell(3, 1, 1, .none, &.{});
     try testing.expectError(error.UnknownCell, firstBlock(&r, nv(0.5, 1.5, 1.5), nv(100.5, 1.5, 1.5)));
     try testing.expectError(error.OutOfRange, firstBlock(&r, nv(1e12, 1.5, 1.5), nv(0.5, 1.5, 1.5)));
+    try testing.expectError(error.OutOfRange, firstBlock(&r, nv(0.5, 1.5, 1.5), nv(std.math.inf(f64), 1.5, 1.5)));
 }
