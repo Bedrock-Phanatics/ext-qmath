@@ -65,15 +65,19 @@ pub fn build(b: *std.Build) void {
     extension_file.addCopyFileToSource(extension.getEmittedBin(), b.fmt("modules/{s}", .{extension_filename}));
     b.getInstallStep().dependOn(&extension_file.step);
 
+    // run-tests.php needs an absolute path to the PHP binary.
+    const php_path = b.findProgram(.{ .names = &.{php_binary} }) orelse php_binary;
     const run_tests_step = b.step("run-tests", "Run PHPT tests");
-    const phpt = addRunPhpTool(b, php_binary, phpz_dep.path("tools/php/run-tests.php"), "build/run-tests.php");
-    phpt.addArgs(&.{ "-q", "--show-diff", "-p", php_binary, "-d", b.fmt("extension=modules/{s}", .{extension_filename}), "tests" });
+    const phpt = addRunPhpTool(b, php_path, phpz_dep.path("tools/php/run-tests.php"), "build/run-tests.php");
+    phpt.setEnvironmentVariable("TEST_PHP_EXECUTABLE", php_path);
+    phpt.addArgs(&.{ "-q", "-n", "--show-diff", "-d", b.fmt("extension=modules/{s}", .{extension_filename}), "tests" });
     phpt.step.dependOn(b.getInstallStep());
     run_tests_step.dependOn(&phpt.step);
 
     const gen_stub_step = b.step("gen-stub", "Regenerate arginfo from the PHP stub");
-    const gen_stub = addRunPhpTool(b, php_binary, phpz_dep.path("tools/php/gen_stub.php"), "build/gen_stub.php");
-    gen_stub.addArg(extension_name ++ ".stub.php");
+    const gen_stub = addRunPhpTool(b, php_path, phpz_dep.path("tools/php/gen_stub.php"), "build/gen_stub.php");
+    gen_stub.setName("gen_arginfo");
+    gen_stub.argv.items[1] = .{ .bytes = "tools/gen_arginfo.php" };
     gen_stub_step.dependOn(&gen_stub.step);
 }
 
