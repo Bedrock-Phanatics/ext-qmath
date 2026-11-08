@@ -39,9 +39,15 @@ pub const Iter = struct {
         self.drop();
     }
 
+    /// Clears the slot before releasing, a destructor may re-enter the iterator.
     fn drop(self: *Iter) void {
-        if (rt.ztype(&self.cached) != rt.IS_UNDEF) c.zval_ptr_dtor(&self.cached);
+        var old = self.cached;
         self.cached = std.mem.zeroes(c.zval);
+        if (rt.ztype(&old) != rt.IS_UNDEF) c.zval_ptr_dtor(&old);
+    }
+
+    fn gc(self: *Iter, buf: *phpz.GcBuffer) void {
+        if (rt.ztype(&self.cached) != rt.IS_UNDEF) buf.add(phpz.Zval.from(&self.cached));
     }
 
     fn start(self: *Iter) Error!void {
@@ -194,7 +200,8 @@ pub const Raycast = struct {
         const r = try region.argRegion(ctx, 1);
         const start = try vector.argV3(ctx, 2);
         const end = try vector.argV3(ctx, 3);
-        const h = (core.raycast.firstBlock(r, start, end) catch |e| return region.fail(e)) orelse return;
+        var budget = core.raycast.Budget{};
+        const h = (core.raycast.firstBlock(r, start, end, &budget) catch |e| return region.fail(e)) orelse return;
         newHit(rt.ret(ctx), h);
     }
 
@@ -203,7 +210,8 @@ pub const Raycast = struct {
         const r = try region.argRegion(ctx, 1);
         const start = try vector.argV3(ctx, 2);
         const end = try vector.argV3(ctx, 3);
-        const h = core.raycast.firstBlock(r, start, end) catch |e| switch (e) {
+        var budget = core.raycast.Budget{};
+        const h = core.raycast.firstBlock(r, start, end, &budget) catch |e| switch (e) {
             error.ZeroLength => return true,
             else => return region.fail(e),
         };
@@ -267,13 +275,14 @@ pub const Raycast = struct {
         const out = rt.ret(ctx);
         const s: *c.zend_string = c.zend_string_alloc(n * 56, false);
         const dst = s.val()[0 .. n * 56];
+        var budget = core.raycast.Budget{};
         for (0..n) |i| {
             var v: [6]f64 = undefined;
             inline for (0..6) |k| v[k] = region.readDouble(segments[i * 48 + k * 8 ..][0..8]);
             const start = NumVec{ Num.f(v[0]), Num.f(v[1]), Num.f(v[2]) };
             const end = NumVec{ Num.f(v[3]), Num.f(v[4]), Num.f(v[5]) };
             const rec = dst[i * 56 ..][0..56];
-            const hit = core.raycast.firstBlock(r, start, end) catch |e| {
+            const hit = core.raycast.firstBlock(r, start, end, &budget) catch |e| {
                 c.zend_string_efree(s);
                 return region.fail(e);
             };
@@ -298,7 +307,7 @@ fn writeLong(b: *[8]u8, v: i64) void {
 
 pub const VoxelRayTraceClass = phpz.Class("quark\\math\\VoxelRayTrace", VoxelRayTrace, .{});
 pub const VoxelHitClass = phpz.Class("quark\\math\\collision\\VoxelHit", VoxelHit, .{ .register = registerHit });
-pub const VoxelRayIteratorClass = phpz.Class("quark\\math\\VoxelRayIterator", Iter, .{ .deinit = Iter.deinit, .register = registerIterator });
+pub const VoxelRayIteratorClass = phpz.Class("quark\\math\\VoxelRayIterator", Iter, .{ .deinit = Iter.deinit, .gc = Iter.gc, .register = registerIterator });
 pub const RaycastClass = phpz.Class("quark\\math\\collision\\Raycast", Raycast, .{});
 
 fn registerHit(register_fn: anytype) *phpz.ClassEntry {

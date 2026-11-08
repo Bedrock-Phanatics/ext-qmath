@@ -154,7 +154,8 @@ pub const ExplosionMath = struct {
         const r = try region.argRegion(ctx, 1);
         const origin = try vector.argV3(ctx, 2);
         const b = try region.validBox(try aabb.argBox(ctx, 3));
-        return core.raycast.exposure(r, origin, b) catch |e| return region.fail(e);
+        var budget = core.raycast.Budget{};
+        return core.raycast.exposure(r, origin, b, &budget) catch |e| return region.fail(e);
     }
 
     pub fn exposures(ctx: Ctx) Error!void {
@@ -168,6 +169,7 @@ pub const ExplosionMath = struct {
             c.zval_ptr_dtor(out);
             rt.setNull(out);
         }
+        var budget = core.raycast.Budget{};
         var pos: c.HashPosition = 0;
         c.zend_hash_internal_pointer_reset_ex(arr, &pos);
         while (c.zend_hash_get_current_data_ex(arr, &pos)) |raw| : (_ = c.zend_hash_move_forward_ex(arr, &pos)) {
@@ -177,7 +179,7 @@ pub const ExplosionMath = struct {
                 return error.PhpException;
             }
             const b = try region.validBox(try aabb.readBox(zv.value.obj));
-            const e = core.raycast.exposure(r, origin, b) catch |err| return region.fail(err);
+            const e = core.raycast.exposure(r, origin, b, &budget) catch |err| return region.fail(err);
             var val: c.zval = undefined;
             rt.setDouble(&val, e);
             var key: c.zval = undefined;

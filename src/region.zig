@@ -41,6 +41,7 @@ pub fn fail(err: anyerror) Error {
         error.Frozen => rt.throwCe(rt.phpCe("spl_ce_LogicException"), "Cannot modify a frozen collision region"),
         error.ZeroLength => rt.invalidArgument(core.voxel.zero_length_message, .{}),
         error.TooManySamples => rt.valueError("Bounding box is too large to sample", .{}),
+        error.TooManySteps => rt.valueError("The call visits more than {d} voxels", .{core.raycast.Budget.max_steps}),
         else => rt.throwFmt(rt.phpCe("zend_ce_error"), "qmath: {s}", .{@errorName(err)}),
     };
 }

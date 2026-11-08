@@ -518,6 +518,7 @@ namespace quark\math\collision {
         public function __construct(\quark\math\AxisAlignedBB $bb, int $hitFace, \quark\math\Vector3 $hitVector, int $blockX, int $blockY, int $blockZ) {}
     }
 
+    /** Block traces visit at most 16777216 voxels per call and throw ValueError beyond that. */
     final class Raycast
     {
         private function __construct() {}
@@ -611,6 +612,7 @@ namespace quark\math\physics {
         public function setPacked(string $values): void {}
     }
 
+    /** Block traces visit at most 16777216 voxels per call and throw ValueError beyond that. */
     final class ExplosionMath
     {
         private function __construct() {}
