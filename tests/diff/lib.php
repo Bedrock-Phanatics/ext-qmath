@@ -72,7 +72,8 @@ function enc(mixed $v, int $depth = 0) : string{
 		return "i" . $v;
 	}
 	if(is_float($v)){
-		return "f" . bin2hex(pack("e", $v));
+		// NaN sign and payload bits are unspecified when two NaNs meet, so every NaN compares equal
+		return is_nan($v) ? "fNAN" : "f" . bin2hex(pack("e", $v));
 	}
 	if(is_string($v)){
 		return "s" . json_encode($v, JSON_INVALID_UTF8_SUBSTITUTE);
