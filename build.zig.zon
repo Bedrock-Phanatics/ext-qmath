@@ -1,0 +1,22 @@
+.{
+    .name = .qmath,
+    .version = "0.1.0",
+    .fingerprint = 0x8af3e5338aa7a089,
+    .minimum_zig_version = "0.17.1",
+    .dependencies = .{
+        .phpz = .{
+            .url = "git+https://github.com/happystraw/phpz#811e760391035f05adc37f13c5c97ceab728c719",
+            .hash = "phpz-0.0.0-D3BhOL-EFgA9n7djLPc_f38IZ2lgb-BDikchmhI-_5Bu",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "qmath.h",
+        "qmath.stub.php",
+        "qmath_arginfo.h",
+        "src",
+        "LICENSE",
+        "README.md",
+    },
+}

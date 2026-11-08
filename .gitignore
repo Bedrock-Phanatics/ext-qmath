@@ -1,0 +1,12 @@
+.zig-cache/
+zig-out/
+zig-pkg/
+modules/
+build/
+tests/**/*.diff
+tests/**/*.exp
+tests/**/*.log
+tests/**/*.out
+tests/**/*.php.tmp
+tests/**/*.sh
+!tests/**/*.phpt
