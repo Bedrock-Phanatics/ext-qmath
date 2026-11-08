@@ -309,7 +309,8 @@ pub fn retStringBytes(out: *c.zval, bytes: []const u8) void {
 
 /// Persistent immutable array, the same shape opcache gives constant arrays.
 pub fn persistentArray(count: u32) *c.zend_array {
-    const ht: *c.zend_array = @ptrCast(@alignCast(c.__zend_malloc(@sizeOf(c.zend_array))));
+    // malloc() like pemalloc(), whose signature differs between debug and release PHP builds.
+    const ht = std.heap.c_allocator.create(c.zend_array) catch @panic("qmath: out of memory during startup");
     c._zend_hash_init(ht, count, null, true);
     c.zend_hash_real_init_packed(ht);
     return ht;
@@ -322,8 +323,10 @@ pub fn freezeArray(ht: *c.zend_array) void {
 }
 
 pub fn freeArray(ht: *c.zend_array) void {
+    // The extension is the only owner at shutdown, debug builds assert that before destroying.
+    ht.gc.refcount = 1;
     c.zend_hash_destroy(ht);
-    c.free(ht);
+    std.heap.c_allocator.destroy(ht);
 }
 
 pub inline fn setImmutableArray(zv: *c.zval, ht: *c.zend_array) void {
