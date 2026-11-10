@@ -58,9 +58,12 @@ See [`qmath.stub.php`](qmath.stub.php) for the complete API.
 
 ## Behavior Notes
 
-- **Compatibility:** Results match pmmp/Math 1.0 and pocketmine/color bit for bit. Redundant legacy methods such as `Vector3::getX()`, `sidesArray()` and the `RayTraceResult` getters are removed in favour of properties and `sides()`.
+- **Compatibility:** Results match pmmp/Math 1.0 and pocketmine/color bit for bit apart from the fixes listed below. Redundant legacy methods such as `Vector3::getX()`, `sidesArray()` and the `RayTraceResult` getters are removed in favour of properties and `sides()`.
 - **Inheritance:** `Vector3` stays mutable and subclassable, its declared properties are the only storage. Native methods respect overridden `getSide()` implementations and property hooks. Other internal calls are not virtual.
 - **Results:** `RayTraceResult`, `VoxelHit`, `MoveResult`, and `SweepResult` have readonly properties. `Vector3::sides()` and `sidesAroundAxis()` return arrays keyed by facing.
-- **Collision data:** Missing collision data throws `CollisionDataException` rather than being treated as air.
+- **Collision data:** Missing collision data throws `CollisionDataException` rather than being treated as air. `setSection()` wants a box list for every custom cell, an empty one for a shape with no boxes.
+- **Overflowing shapes:** A collision box may reach one block out of its own cell in any direction and is cut off beyond that. Movement, sweeps, raycasts and exposure see it from every cell it reaches, diagonals included, where PocketMine only looked at the six face neighbours for movement and not at all for raycasts.
+- **Integers:** `Vector3::floor()`, `ceil()`, `round()` and `getFloorX/Y/Z()` return integer components untouched instead of rounding them through a float, which matters above 2^53.
+- **Invalid input:** Non-finite ray endpoints, motion, and physics coefficients throw instead of looping forever or spreading NaN. Native loops are capped at 4194304 voxels per call.
 - **Native memory:** `CollisionRegion`, `ResistanceGrid`, `Simplex`, and `VoxelRayIterator` cannot be serialized or shared between threads.
 - **Floating point:** IEEE-strict math is used without fast-math. NaN results remain NaN, although their sign bits may differ.

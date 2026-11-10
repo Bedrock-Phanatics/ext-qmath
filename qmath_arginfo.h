@@ -1,5 +1,5 @@
 /* This is a generated file, edit the .stub.php file instead.
- * Stub hash: 9b6d2300168e93383e5ee35374167adabfe01fbe */
+ * Stub hash: 95e13edebc41384e94d63b8633f2109bb2e58c70 */
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_class_quark_math_Axis___construct, 0, 0, 0)
 ZEND_END_ARG_INFO()
