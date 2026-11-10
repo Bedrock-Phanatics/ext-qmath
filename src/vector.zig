@@ -410,6 +410,7 @@ pub const Vector3 = struct {
     }
 
     fn components(ctx: Ctx, comptime pick: fn (Num, Num) Num) Error!void {
+        try ctx.call.expectNoExtraNamedArgs();
         const n = ctx.call.argCount();
         if (n < 1) return phpz.exception.wrongParameterCount(1, std.math.maxInt(u32));
         var acc = try argV3(ctx, 1);
@@ -430,6 +431,7 @@ pub const Vector3 = struct {
     }
 
     pub fn sum(ctx: Ctx) Error!void {
+        try ctx.call.expectNoExtraNamedArgs();
         var acc = NumVec{ Num.i(0), Num.i(0), Num.i(0) };
         var i: u32 = 1;
         while (i <= ctx.call.argCount()) : (i += 1) acc = addTo(acc, try argV3(ctx, i));

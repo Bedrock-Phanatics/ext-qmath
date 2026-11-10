@@ -74,6 +74,7 @@ pub const Color = struct {
     }
 
     pub fn mix(ctx: Ctx) Error!void {
+        try ctx.call.expectNoExtraNamedArgs();
         const n = ctx.call.argCount();
         if (n < 1) return phpz.exception.wrongParameterCount(1, std.math.maxInt(u32));
         var sum = [4]i64{ 0, 0, 0, 0 };
