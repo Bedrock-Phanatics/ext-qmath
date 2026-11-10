@@ -22,11 +22,13 @@ pub fn startup() void {
     hit_block = .{ rt.Prop.resolve(hit_ce, "blockX"), rt.Prop.resolve(hit_ce, "blockY"), rt.Prop.resolve(hit_ce, "blockZ") };
 }
 
-const State = enum { zero_length, fresh, running, done };
+const State = enum { invalid, fresh, running, done };
+const max_steps = core.raycast.Budget.max_steps;
 
 pub const Iter = struct {
     ray: voxel.Ray = undefined,
     initial: ?voxel.Ray = null,
+    reason: voxel.Error = error.ZeroLength,
     state: State = .done,
     index: i64 = 0,
     cached: c.zval = std.mem.zeroes(c.zval),
@@ -51,15 +53,18 @@ pub const Iter = struct {
     }
 
     fn start(self: *Iter) Error!void {
-        if (self.state == .fresh or self.state == .zero_length) try self.restart();
+        if (self.state == .fresh or self.state == .invalid) try self.restart();
     }
 
     fn restart(self: *Iter) Error!void {
         self.drop();
-        if (self.state == .zero_length) {
+        if (self.state == .invalid) {
             // Like a generator that threw, later traversals yield nothing
             self.state = .done;
-            return rt.invalidArgument(voxel.zero_length_message, .{});
+            return rt.invalidArgument("{s}", .{switch (self.reason) {
+                error.ZeroLength => voxel.zero_length_message,
+                error.NotFinite => voxel.not_finite_message,
+            }});
         }
         self.ray = self.initial orelse return;
         self.index = 0;
@@ -82,10 +87,15 @@ pub const Iter = struct {
         try self.start();
         if (self.state != .running) return;
         self.drop();
-        if (self.ray.advance()) {
-            self.index += 1;
-        } else {
+        if (!self.ray.advance()) {
             self.state = .done;
+            return;
+        }
+        self.index += 1;
+        // Nothing real traces this far, and a PHP loop over it would stall the server.
+        if (self.index >= max_steps) {
+            self.state = .done;
+            return rt.valueError("The ray visits more than {d} voxels", .{max_steps});
         }
     }
 
@@ -105,8 +115,9 @@ fn newIterator(ctx: Ctx, start: NumVec, end: NumVec) Error!void {
     if (voxel.Ray.init(start, end)) |ray| {
         b.initial = ray;
         b.state = .fresh;
-    } else |_| {
-        b.state = .zero_length;
+    } else |e| {
+        b.reason = e;
+        b.state = .invalid;
     }
     const out = rt.ret(ctx);
     out.value.obj = w.object().ptr();
@@ -169,7 +180,7 @@ pub const Raycast = struct {
         const start = try vector.argV3(ctx, 1);
         const end = try vector.argV3(ctx, 2);
         const limit = if (ctx.call.argCount() >= 3) try ctx.call.expectArg(3, .{ .int = .{} }, {}) else 4096;
-        if (limit < 1 or limit > 1 << 24) return rt.valueError("limit must be between 1 and 16777216", .{});
+        if (limit < 1 or limit > max_steps) return rt.valueError("limit must be between 1 and {d}", .{max_steps});
         var ray = voxel.Ray.init(start, end) catch |e| return region.fail(e);
         const out = rt.ret(ctx);
         rt.newArray(out, 0);

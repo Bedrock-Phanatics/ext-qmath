@@ -5,9 +5,10 @@ const num = @import("num.zig");
 const Num = num.Num;
 const NumVec = @import("geom.zig").NumVec;
 
-pub const Error = error{ZeroLength};
+pub const Error = error{ ZeroLength, NotFinite };
 
 pub const zero_length_message = "Start and end points are the same, giving a zero direction vector";
+pub const not_finite_message = "Start and end points must be finite and less than 1e154 apart";
 
 pub const Ray = struct {
     block: NumVec,
@@ -18,12 +19,17 @@ pub const Ray = struct {
     done: bool = false,
 
     pub fn init(start: NumVec, end: NumVec) Error!Ray {
+        // A NaN direction or an infinite length would walk forever.
+        inline for (0..3) |a| {
+            if (!std.math.isFinite(start[a].toFloat()) or !std.math.isFinite(end[a].toFloat())) return error.NotFinite;
+        }
         var block: NumVec = undefined;
         inline for (0..3) |a| block[a] = Num.i(num.floorInt(start[a]));
 
         var diff: NumVec = undefined;
         inline for (0..3) |a| diff[a] = end[a].add(start[a].neg());
         const len_sq = diff[0].mul(diff[0]).add(diff[1].mul(diff[1])).add(diff[2].mul(diff[2]));
+        if (!std.math.isFinite(len_sq.toFloat())) return error.NotFinite;
         if (!(len_sq.toFloat() > 0)) return error.ZeroLength;
         const len = @sqrt(len_sq.toFloat());
         var dir: [3]f64 = undefined;
@@ -130,7 +136,38 @@ test "diagonal corner prefers z then y then x" {
 
 test "zero length rays are rejected" {
     try testing.expectError(error.ZeroLength, Ray.init(nv(1, 2, 3), nv(1, 2, 3)));
-    try testing.expectError(error.ZeroLength, Ray.init(nv(std.math.nan(f64), 0, 0), nv(1, 2, 3)));
+    try testing.expectError(error.ZeroLength, Ray.init(nv(1, 2, 3), nv(1, 2, 3 + 1e-170)));
+}
+
+test "rays that could never end are rejected" {
+    const inf = std.math.inf(f64);
+    const far = std.math.floatMax(f64);
+    for ([_]f64{ std.math.nan(f64), inf, -inf }) |bad| {
+        try testing.expectError(error.NotFinite, Ray.init(nv(bad, 0, 0), nv(1, 2, 3)));
+        try testing.expectError(error.NotFinite, Ray.init(nv(1, 2, 3), nv(0, bad, 0)));
+    }
+    try testing.expectError(error.NotFinite, Ray.init(nv(-far, 0, 0), nv(far, 0, 0)));
+    try testing.expectError(error.NotFinite, Ray.init(nv(0, 0, 0), nv(1e200, 0, 0)));
+    try testing.expectError(error.NotFinite, Ray.init(.{ Num.i(std.math.minInt(i64)), Num.i(0), Num.i(0) }, .{ Num.i(std.math.maxInt(i64)), Num.f(1e300), Num.i(0) }));
+}
+
+test "every ray ends within its length in steps" {
+    var prng = std.Random.DefaultPrng.init(7);
+    const rand = prng.random();
+    for (0..2000) |_| {
+        var p: [6]f64 = undefined;
+        for (&p) |*v| v.* = (rand.float(f64) - 0.5) * std.math.pow(f64, 10, @floatFromInt(rand.intRangeAtMost(i32, -3, 16)));
+        var ray = Ray.init(nv(p[0], p[1], p[2]), nv(p[0] + (rand.float(f64) - 0.5) * 60, p[1] + (rand.float(f64) - 0.5) * 60, p[2] + (rand.float(f64) - 0.5) * 60)) catch continue;
+        var steps: usize = 0;
+        while (ray.advance()) steps += 1;
+        try testing.expect(steps <= 200);
+    }
+}
+
+test "integer starts beyond 2^53 keep their exact voxel" {
+    const x: i64 = (1 << 60) + 1;
+    const ray = try Ray.init(.{ Num.i(x), Num.i(0), Num.i(0) }, .{ Num.i(x), Num.i(4), Num.i(0) });
+    try testing.expectEqual([3]i64{ x, 0, 0 }, ray.cell().?);
 }
 
 test "taxicab steps of one" {
