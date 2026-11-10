@@ -124,34 +124,10 @@ final class World{
 	}
 }
 
-/** World::getBlockCollisionBoxesForCell() */
-function cellBoxes(World $w, int $x, int $y, int $z) : array{
-	$info = $w->info($x, $y, $z);
-	$boxes = match($info){
-		COLLISION_NONE => [],
-		COLLISION_CUBE => [AxisAlignedBB::one()->offset($x, $y, $z)],
-		default => $w->ownBoxes($x, $y, $z)
-	};
-	if($info !== COLLISION_CUBE){
-		$cellBB = null;
-		foreach(Facing::OFFSET as [$dx, $dy, $dz]){
-			$ox = $x + $dx;
-			$oy = $y + $dy;
-			$oz = $z + $dz;
-			if($w->info($ox, $oy, $oz) === COLLISION_MAY_OVERFLOW){
-				$cellBB ??= AxisAlignedBB::one()->offset($x, $y, $z);
-				foreach($w->ownBoxes($ox, $oy, $oz) as $extra){
-					if($extra->intersectsWith($cellBB)){
-						$boxes[] = $extra;
-					}
-				}
-			}
-		}
-	}
-	return $boxes;
-}
-
-/** World::getBlockCollisionBoxes() */
+/**
+ * World::getBlockCollisionBoxes() with overflow fixed: every box touching the query once, from the cells it covers
+ * and from overflowing cells in the ring around them, diagonals included.
+ */
 function blockCollisionBoxes(World $w, AxisAlignedBB $bb) : array{
 	$minX = (int) floor($bb->minX);
 	$minY = (int) floor($bb->minY);
@@ -160,10 +136,14 @@ function blockCollisionBoxes(World $w, AxisAlignedBB $bb) : array{
 	$maxY = (int) floor($bb->maxY);
 	$maxZ = (int) floor($bb->maxZ);
 	$collides = [];
-	for($z = $minZ; $z <= $maxZ; ++$z){
-		for($x = $minX; $x <= $maxX; ++$x){
-			for($y = $minY; $y <= $maxY; ++$y){
-				foreach(cellBoxes($w, $x, $y, $z) as $blockBB){
+	for($z = $minZ - 1; $z <= $maxZ + 1; ++$z){
+		for($x = $minX - 1; $x <= $maxX + 1; ++$x){
+			for($y = $minY - 1; $y <= $maxY + 1; ++$y){
+				$covered = $x >= $minX && $x <= $maxX && $y >= $minY && $y <= $maxY && $z >= $minZ && $z <= $maxZ;
+				if(!$covered && $w->info($x, $y, $z) !== COLLISION_MAY_OVERFLOW){
+					continue;
+				}
+				foreach($w->ownBoxes($x, $y, $z) as $blockBB){
 					if($blockBB->intersectsWith($bb)){
 						$collides[] = $blockBB;
 					}
@@ -238,33 +218,51 @@ function move(World $w, AxisAlignedBB $boundingBox, float $dx, float $dy, float 
 	];
 }
 
-/** Block::calculateIntercept() */
-function blockIntercept(array $bbs, Vector3 $pos1, Vector3 $pos2) : ?RayTraceResult{
-	if(count($bbs) === 0){
-		return null;
-	}
-	$currentHit = null;
-	$currentDistance = PHP_INT_MAX;
-	foreach($bbs as $bb){
-		$nextHit = $bb->calculateIntercept($pos1, $pos2);
-		if($nextHit === null){
-			continue;
+/**
+ * Nearest intercept lying inside one voxel, against its own boxes and those overflowing into it from the cells
+ * around. Walking the voxels in order then gives the nearest hit overall.
+ *
+ * @return array{int, int, int, int, Vector3, AxisAlignedBB}|null owner cell, face, hit, box
+ */
+function voxelIntercept(World $w, int $x, int $y, int $z, Vector3 $pos1, Vector3 $pos2) : ?array{
+	$best = null;
+	$bestDistance = PHP_INT_MAX;
+	$cells = [[$x, $y, $z]];
+	for($ox = $x - 1; $ox <= $x + 1; ++$ox){
+		for($oz = $z - 1; $oz <= $z + 1; ++$oz){
+			for($oy = $y - 1; $oy <= $y + 1; ++$oy){
+				if(($ox !== $x || $oy !== $y || $oz !== $z) && $w->info($ox, $oy, $oz) === COLLISION_MAY_OVERFLOW){
+					$cells[] = [$ox, $oy, $oz];
+				}
+			}
 		}
-		$nextDistance = $nextHit->hitVector->distanceSquared($pos1);
-		if($nextDistance < $currentDistance){
-			$currentHit = $nextHit;
-			$currentDistance = $nextDistance;
+	}
+	foreach($cells as [$ox, $oy, $oz]){
+		foreach($w->ownBoxes($ox, $oy, $oz) as $bb){
+			$hit = $bb->calculateIntercept($pos1, $pos2);
+			if($hit === null){
+				continue;
+			}
+			$v = $hit->hitVector;
+			if($v->x < $x - 1e-6 || $v->x > $x + 1 + 1e-6 || $v->y < $y - 1e-6 || $v->y > $y + 1 + 1e-6 || $v->z < $z - 1e-6 || $v->z > $z + 1 + 1e-6){
+				continue;
+			}
+			$distance = $v->distanceSquared($pos1);
+			if($distance < $bestDistance){
+				$best = [$ox, $oy, $oz, $hit->hitFace, $v, $hit->bb];
+				$bestDistance = $distance;
+			}
 		}
 	}
-	return $currentHit;
+	return $best;
 }
 
 /** Block pass of Projectile::move(). */
 function projectileBlocks(World $w, Vector3 $start, Vector3 $end) : ?array{
 	foreach(VoxelRayTrace::betweenPoints($start, $end) as $v){
-		$hit = blockIntercept($w->ownBoxes($v->x, $v->y, $v->z), $start, $end);
+		$hit = voxelIntercept($w, $v->x, $v->y, $v->z, $start, $end);
 		if($hit !== null){
-			return [$v->x, $v->y, $v->z, $hit->hitFace, $hit->hitVector, $hit->bb];
+			return $hit;
 		}
 	}
 	return null;
@@ -308,7 +306,7 @@ function exposure(World $w, Vector3 $origin, AxisAlignedBB $bb) : float{
 				);
 				$intercepted = false;
 				foreach(VoxelRayTrace::betweenPoints($origin, $point) as $pos){
-					if(blockIntercept($w->ownBoxes($pos->x, $pos->y, $pos->z), $origin, $point) !== null){
+					if(voxelIntercept($w, $pos->x, $pos->y, $pos->z, $origin, $point) !== null){
 						$intercepted = true;
 						break;
 					}

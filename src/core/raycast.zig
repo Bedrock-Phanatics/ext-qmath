@@ -12,7 +12,7 @@ pub const Error = collision.Error || voxel.Error || error{ TooManySamples, TooMa
 
 /// Voxel visits shared by everything one PHP call traces, since nothing can interrupt a native loop.
 pub const Budget = struct {
-    pub const max_steps = 1 << 24;
+    pub const max_steps = 1 << 22;
 
     left: u64 = max_steps,
 
@@ -26,40 +26,58 @@ pub const BoxHit = struct {
     face: i64,
     hit: Vec,
     box: Box,
-    index: usize,
 };
 
-pub fn nearest(boxes: []const Box, start: NumVec, end: NumVec) ?BoxHit {
-    var best: ?BoxHit = null;
-    var distance: f64 = geom.php_int_max_f;
-    for (boxes, 0..) |b, i| {
-        const h = geom.calculateIntercept(b, start, end) orelse continue;
-        const d = geom.distanceSquaredNum(start, h.hit);
-        if (d < distance) {
-            best = .{ .face = h.face, .hit = h.hit, .box = b, .index = i };
-            distance = d;
-        }
-    }
-    return best;
-}
-
 pub const BlockHit = struct {
+    /// The block owning the box, which is not the voxel the hit lies in when the box overflows.
     cell: [3]i64,
     hit: BoxHit,
 };
 
-/// Stops at the first voxel whose own boxes intercept the segment.
+/// Nearest intercept that lies inside one voxel. A box reaching in from a neighbour is only hit here if the
+/// segment meets it here, so walking the voxels in order finds the nearest hit overall.
+const VoxelPick = struct {
+    start: NumVec,
+    end: NumVec,
+    cell: [3]i64 = undefined,
+    best: ?BlockHit = null,
+    distance: f64 = geom.php_int_max_f,
+
+    /// Slack for hits computed a rounding error outside the voxel the walk is in.
+    const slack = 1e-6;
+
+    pub fn add(self: *VoxelPick, box: Box, owner: [3]i64) void {
+        var lo: Vec = undefined;
+        var hi: Vec = undefined;
+        // A hit in this voxel needs the box to reach it, which most boxes of the cells around do not.
+        inline for (0..3) |a| {
+            lo[a] = @as(f64, @floatFromInt(self.cell[a])) - slack;
+            hi[a] = @as(f64, @floatFromInt(self.cell[a])) + 1.0 + slack;
+            if (box.max[a] < lo[a] or box.min[a] > hi[a]) return;
+        }
+        const h = geom.calculateIntercept(box, self.start, self.end) orelse return;
+        inline for (0..3) |a| {
+            if (h.hit[a] < lo[a] or h.hit[a] > hi[a]) return;
+        }
+        const d = geom.distanceSquaredNum(self.start, h.hit);
+        if (d < self.distance) {
+            self.best = .{ .cell = owner, .hit = .{ .face = h.face, .hit = h.hit, .box = box } };
+            self.distance = d;
+        }
+    }
+};
+
+/// Stops at the first voxel in which a collision box intercepts the segment, its own or one overflowing into it.
 pub fn firstBlock(region: *const Region, start: NumVec, end: NumVec, budget: *Budget) Error!?BlockHit {
     var ray = try voxel.Ray.init(start, end);
-    // A non-finite length never ends, and nothing can interrupt a native loop.
-    if (!std.math.isFinite(ray.radius)) return error.OutOfRange;
-    var scratch: Box = undefined;
     var lk = collision.Lookup{};
+    var pick = VoxelPick{ .start = start, .end = end };
     while (true) {
         try budget.take();
         const c = ray.cell() orelse return error.OutOfRange;
-        const boxes = try region.ownBoxes(&lk, c[0], c[1], c[2], &scratch);
-        if (nearest(boxes, start, end)) |h| return .{ .cell = c, .hit = h };
+        pick.cell = c;
+        try region.reaching(&lk, c[0], c[1], c[2], &pick);
+        if (pick.best) |h| return h;
         if (!ray.advance()) return null;
     }
 }
@@ -109,6 +127,21 @@ const testing = std.testing;
 
 fn nv(x: f64, y: f64, z: f64) NumVec {
     return .{ Num.f(x), Num.f(y), Num.f(z) };
+}
+
+/// Checks every box, the slow way a trace has to agree with.
+fn nearest(boxes: []const Box, start: NumVec, end: NumVec) ?BoxHit {
+    var best: ?BoxHit = null;
+    var distance: f64 = geom.php_int_max_f;
+    for (boxes) |b| {
+        const h = geom.calculateIntercept(b, start, end) orelse continue;
+        const d = geom.distanceSquaredNum(start, h.hit);
+        if (d < distance) {
+            best = .{ .face = h.face, .hit = h.hit, .box = b };
+            distance = d;
+        }
+    }
+    return best;
 }
 
 fn testRegion() !Region {
@@ -163,7 +196,113 @@ test "unknown voxels on the path are errors" {
     try r.setCell(3, 1, 1, .none, &.{});
     try testing.expectError(error.UnknownCell, firstBlock(&r, nv(0.5, 1.5, 1.5), nv(100.5, 1.5, 1.5), &budget));
     try testing.expectError(error.OutOfRange, firstBlock(&r, nv(1e12, 1.5, 1.5), nv(0.5, 1.5, 1.5), &budget));
-    try testing.expectError(error.OutOfRange, firstBlock(&r, nv(0.5, 1.5, 1.5), nv(std.math.inf(f64), 1.5, 1.5), &budget));
+    try testing.expectError(error.NotFinite, firstBlock(&r, nv(0.5, 1.5, 1.5), nv(std.math.inf(f64), 1.5, 1.5), &budget));
+    try testing.expectError(error.NotFinite, firstBlock(&r, nv(std.math.nan(f64), 1.5, 1.5), nv(3, 1.5, 1.5), &budget));
+}
+
+const fence = Box.init(5.375, 1, 1.375, 5.625, 2.5, 1.625);
+
+test "a box overflowing into the voxel above is hit there" {
+    var r = try testRegion();
+    defer r.deinit();
+    var budget = Budget{};
+    try r.setCell(5, 1, 1, .may_overflow, &.{fence});
+    const h = (try firstBlock(&r, nv(0.5, 2.25, 1.5), nv(10.5, 2.25, 1.5), &budget)).?;
+    try testing.expectEqual([3]i64{ 5, 1, 1 }, h.cell);
+    try testing.expectEqual(geom.facing.west, h.hit.face);
+    try testing.expectEqual(@as(f64, 5.375), h.hit.hit[0]);
+    try testing.expect(try firstBlock(&r, nv(0.5, 2.75, 1.5), nv(10.5, 2.75, 1.5), &budget) == null);
+    // Straight down onto the top of the post.
+    const top = (try firstBlock(&r, nv(5.5, 4.5, 1.5), nv(5.5, 0.5, 1.5), &budget)).?;
+    try testing.expectEqual(geom.facing.up, top.hit.face);
+    try testing.expectEqual(@as(f64, 2.5), top.hit.hit[1]);
+    // Starting inside the overflowing part finds the way out.
+    const out = (try firstBlock(&r, nv(5.5, 2.2, 1.5), nv(9.5, 2.2, 1.5), &budget)).?;
+    try testing.expectEqual([3]i64{ 5, 1, 1 }, out.cell);
+    try testing.expectEqual(@as(f64, 5.625), out.hit.hit[0]);
+}
+
+test "a nearer box in a later voxel beats an overflowing one from an earlier voxel" {
+    var r = try testRegion();
+    defer r.deinit();
+    var budget = Budget{};
+    try r.setCell(5, 1, 1, .may_overflow, &.{fence});
+    const sliver = Box.init(5.65, 2, 1, 5.9, 2.02, 2);
+    try r.setCell(5, 2, 1, .custom, &.{sliver});
+    // Passes beside the post in its own voxel, then meets the sliver before the post's upper half.
+    const h = (try firstBlock(&r, nv(5.9, 1.9, 1.5), nv(5.1, 2.3, 1.5), &budget)).?;
+    try testing.expectEqual([3]i64{ 5, 2, 1 }, h.cell);
+    try testing.expectEqual(sliver, h.hit.box);
+    try r.setCell(5, 2, 1, .none, &.{});
+    const post = (try firstBlock(&r, nv(5.9, 1.9, 1.5), nv(5.1, 2.3, 1.5), &budget)).?;
+    try testing.expectEqual([3]i64{ 5, 1, 1 }, post.cell);
+    try testing.expectEqual(geom.facing.east, post.hit.face);
+}
+
+test "overflow is found across section corners" {
+    var r = Region.init(testing.allocator, 64);
+    defer r.deinit();
+    try r.fillBox(.{ 10, 10, 10 }, .{ 20, 20, 20 }, .none);
+    try r.setCell(15, 15, 15, .custom, &.{Box.init(15.5, 15.5, 15.5, 16.5, 16.5, 16.5)});
+    var budget = Budget{};
+    const h = (try firstBlock(&r, nv(16.2, 16.2, 17.5), nv(16.2, 16.2, 16.1), &budget)).?;
+    try testing.expectEqual([3]i64{ 15, 15, 15 }, h.cell);
+    try testing.expectEqual(geom.facing.south, h.hit.face);
+    try testing.expectEqual(@as(f64, 16.5), h.hit.hit[2]);
+}
+
+test "traces agree with checking every box" {
+    var prng = std.Random.DefaultPrng.init(99);
+    const rand = prng.random();
+    var r = Region.init(testing.allocator, 64);
+    defer r.deinit();
+    try r.fillBox(.{ -4, -4, -4 }, .{ 20, 20, 20 }, .none);
+    var all: std.ArrayList(Box) = .empty;
+    defer all.deinit(testing.allocator);
+    var x: i64 = 0;
+    while (x < 16) : (x += 1) {
+        var y: i64 = 0;
+        while (y < 16) : (y += 1) {
+            var z: i64 = 0;
+            while (z < 16) : (z += 1) {
+                const roll = rand.uintLessThan(u8, 100);
+                if (roll >= 12) continue;
+                if (roll < 3) {
+                    try r.setCell(x, y, z, .cube, &.{});
+                    try all.append(testing.allocator, Box.unitAt(x, y, z));
+                    continue;
+                }
+                // Up to a block outside the cell on any side.
+                const reach: f64 = if (roll < 8) 0 else 1;
+                var b: Box = undefined;
+                const base = [3]f64{ @floatFromInt(x), @floatFromInt(y), @floatFromInt(z) };
+                inline for (0..3) |a| {
+                    const p = base[a] - reach + rand.float(f64) * (1 + 2 * reach);
+                    const q = base[a] - reach + rand.float(f64) * (1 + 2 * reach);
+                    b.min[a] = @min(p, q);
+                    b.max[a] = @max(p, q);
+                }
+                try r.setCell(x, y, z, .custom, &.{b});
+                try all.append(testing.allocator, b);
+            }
+        }
+    }
+    var hits: usize = 0;
+    for (0..4000) |_| {
+        var p: [6]f64 = undefined;
+        for (&p) |*v| v.* = 1 + rand.float(f64) * 14;
+        const start = nv(p[0], p[1], p[2]);
+        const end = nv(p[3], p[4], p[5]);
+        var budget = Budget{};
+        const got = try firstBlock(&r, start, end, &budget);
+        const want = nearest(all.items, start, end);
+        try testing.expectEqual(want == null, got == null);
+        if (want) |w| {
+            hits += 1;
+            try testing.expectApproxEqAbs(geom.distanceSquaredNum(start, w.hit), geom.distanceSquaredNum(start, got.?.hit.hit), 1e-9);
+        }
+    }
+    try testing.expect(hits > 1000);
 }
 
 test "the step budget is shared and bounded" {
