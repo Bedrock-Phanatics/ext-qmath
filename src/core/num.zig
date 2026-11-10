@@ -95,12 +95,19 @@ pub fn fitsLong(d: f64) bool {
     return !(d >= 9223372036854775808.0 or d < -9223372036854775808.0);
 }
 
+/// Ints pass through untouched, a round trip through float would corrupt them above 2^53.
 pub fn floorInt(v: Num) i64 {
-    return dvalToLval(@floor(v.toFloat()));
+    return switch (v) {
+        .int => |i| i,
+        .float => |f| dvalToLval(@floor(f)),
+    };
 }
 
 pub fn ceilInt(v: Num) i64 {
-    return dvalToLval(@ceil(v.toFloat()));
+    return switch (v) {
+        .int => |i| i,
+        .float => |f| dvalToLval(@ceil(f)),
+    };
 }
 
 /// `<=>` against 0, NaN compares greater like PHP.
@@ -145,4 +152,8 @@ test "floor and ceil to int" {
     try testing.expectEqual(@as(i64, -2), floorInt(Num.f(-1.5)));
     try testing.expectEqual(@as(i64, -1), ceilInt(Num.f(-1.5)));
     try testing.expectEqual(@as(i64, 7), floorInt(Num.i(7)));
+    for ([_]i64{ std.math.maxInt(i64), std.math.minInt(i64), (1 << 53) + 1, -(1 << 53) - 1 }) |v| {
+        try testing.expectEqual(v, floorInt(Num.i(v)));
+        try testing.expectEqual(v, ceilInt(Num.i(v)));
+    }
 }

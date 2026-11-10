@@ -288,7 +288,7 @@ pub const Vector3 = struct {
         var r: NumVec = undefined;
         inline for (0..3) |a| {
             const d = phpRound(v[a], places, m);
-            r[a] = if (p > 0) Num.f(d) else Num.i(num.dvalToLval(d));
+            r[a] = if (p > 0) Num.f(d) else if (p == 0 and v[a] == .int) v[a] else Num.i(num.dvalToLval(d));
         }
         retV3(ctx, r);
     }

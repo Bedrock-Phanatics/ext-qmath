@@ -52,6 +52,16 @@ function box(Gen $g, float $r = 8) : AxisAlignedBB{
 	return new AxisAlignedBB($x, $y, $z, $x + $g->float(0, 3), $y + $g->float(0, 3), $z + $g->float(0, 3));
 }
 
+/** QuarkMath rounds ints through float, which corrupts them above 2^53. The extension hands them back untouched. */
+function exactInts(Vector3 $v, Vector3 $rounded) : Vector3{
+	return native() ? $rounded : new Vector3(is_int($v->x) ? $v->x : $rounded->x, is_int($v->y) ? $v->y : $rounded->y, is_int($v->z) ? $v->z : $rounded->z);
+}
+
+/** Same loss when QuarkMath floors an int ray start, so both sides start from the float. */
+function lossy(int|float $n) : int|float{
+	return is_int($n) && abs($n) > 2 ** 53 ? (float) $n : $n;
+}
+
 function suiteVector3(Gen $g, int $n) : void{
 	for($i = 0; $i < $n; ++$i){
 		$v = $g->chance(15) ? new Pos($g->num(), $g->num(), $g->num(), "w") : vec($g);
@@ -61,17 +71,21 @@ function suiteVector3(Gen $g, int $n) : void{
 		$step = $g->pick([1, 2, -1, 0, $g->int(-5, 5), PHP_INT_MAX]);
 		$cases = [
 			'ctor' => fn() => new Vector3($v->x, $v->y, $v->z),
-			'floorXYZ' => fn() => [$v->getFloorX(), $v->getFloorY(), $v->getFloorZ()],
+			'floorXYZ' => fn() => exactInts($v, new Vector3($v->getFloorX(), $v->getFloorY(), $v->getFloorZ())),
 			'add' => fn() => $v->add($w->x, $w->y, $w->z),
 			'addVector' => fn() => $v->addVector($w),
 			'subtract' => fn() => $v->subtract($w->x, $w->y, $w->z),
 			'subtractVector' => fn() => $v->subtractVector($w),
 			'multiply' => fn() => $v->multiply($f),
 			'divide' => fn() => $v->divide($f),
-			'ceil' => fn() => $v->ceil(),
-			'floor' => fn() => $v->floor(),
-			'round' => fn() => $v->round(),
-			'roundP' => fn() => $v->round($g->int(-3, 5), $g->int(1, 9)),
+			'ceil' => fn() => exactInts($v, $v->ceil()),
+			'floor' => fn() => exactInts($v, $v->floor()),
+			'round' => fn() => exactInts($v, $v->round()),
+			'roundP' => function() use ($v, $g){
+				$precision = $g->int(-3, 5);
+				$rounded = $v->round($precision, $g->int(1, 9));
+				return $precision === 0 ? exactInts($v, $rounded) : $rounded;
+			},
 			'abs' => fn() => $v->abs(),
 			'getSide' => fn() => $v->getSide($side, $step),
 			'dirs' => fn() => [$v->down(), $v->up($step), $v->north(), $v->south(), $v->west(2), $v->east()],
@@ -188,6 +202,7 @@ function suiteMath(Gen $g, int $n) : void{
 function suiteVoxel(Gen $g, int $n) : void{
 	for($i = 0; $i < $n; ++$i){
 		$s = $g->chance(80) ? fvec($g, 30) : vec($g);
+		$s = new Vector3(lossy($s->x), lossy($s->y), lossy($s->z));
 		$e = $g->chance(10) ? clone $s : ($g->chance(20) ? new Vector3((int) floor($s->x) + $g->int(-3, 3), $s->y, $g->int(-20, 20)) : fvec($g, 30));
 		if($e->distance($s) > 200 || !is_finite($e->distance($s))){
 			$e = fvec($g, 30);
