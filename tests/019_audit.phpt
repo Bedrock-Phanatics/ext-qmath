@@ -53,9 +53,9 @@ dtor
 key 2
 bool(true)
 bool(true)
-The call visits more than 16777216 voxels
+The call visits more than 4194304 voxels
 bool(true)
-The call visits more than 16777216 voxels
+The call visits more than 4194304 voxels
 float(1)
 bool(false)
 bool(true)

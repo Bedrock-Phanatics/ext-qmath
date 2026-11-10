@@ -144,7 +144,6 @@ int(0)
 int(1)
 string(33) "AxisAlignedBB(1, 0, 0, 2, 0.5, 1)"
 AxisAlignedBB(-0.625, 0, 0.375, -0.375, 1.5, 0.625)
-AxisAlignedBB(-0.625, 0, 0.375, -0.375, 1.5, 0.625)
 AxisAlignedBB(0, 0, 0, 1, 1, 1)
 AxisAlignedBB(1, 0, 0, 2, 0.5, 1)
 bool(false)

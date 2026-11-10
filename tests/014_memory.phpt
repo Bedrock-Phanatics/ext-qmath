@@ -31,7 +31,7 @@ function cycle() : void {
     $n = new quark\math\noise\Simplex(range(0, 255), 1.0, 2.0, 3.0, 2, 0.5, 0.25);
     $n->getFastNoise3D(16, 32, 16, 4, 8, 4, 0, 0, 0);
     try { $r->setCell(1 << 40, 0, 0, R::INFO_NONE); } catch (ValueError) {}
-    $r->setSection(5, 0, 5, str_repeat("\x00", 4096), [7 => [AxisAlignedBB::one()->offset(80, 7, 80)]]);
+    $r->setSection(5, 0, 5, substr_replace(str_repeat("\x02", 4096), "\x00", 7, 1), [7 => [AxisAlignedBB::one()->offset(80, 7, 80)]]);
     $r->invalidateChunk(5, 5);
     $r->missingSections($bb);
     try { CollisionSolver::move($r, $bb, 0, -50, 0); } catch (quark\math\collision\CollisionDataException) {}

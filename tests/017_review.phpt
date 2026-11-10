@@ -33,12 +33,12 @@ $r->invalidateSection(0, 0, 1 << 22);
 $r->invalidateSection(0, -1000000, 0);
 var_dump($r->isKnown(0, 0, 0));
 
-// a fill that runs out of sections still changes the version
+// a fill that runs out of sections leaves the region as it was
 $small = new R(1);
 $small->fillBox(0, 0, 0, 15, 15, 15, R::INFO_NONE);
 $v = $small->getVersion();
 t(fn() => $small->fillBox(0, 0, 0, 31, 15, 15, R::INFO_CUBE));
-var_dump($small->getVersion() !== $v, $small->getCellInfo(0, 0, 0));
+var_dump($small->getVersion() === $v, $small->getCellInfo(0, 0, 0));
 
 t(fn() => $s->__construct());
 var_dump($s->isFrozen());
@@ -80,12 +80,12 @@ ValueError: Coordinates are outside the supported world range
 bool(true)
 quark\math\collision\CollisionDataException: The region holds its maximum number of sections
 bool(true)
-int(1)
+int(2)
 Error: CollisionRegion is already constructed
 bool(true)
-ValueError: Coordinates are outside the supported world range
-ValueError: Coordinates are outside the supported world range
-InvalidArgumentException: Start and end points are the same, giving a zero direction vector
+ValueError: Start and end points must be finite and less than 1e154 apart
+ValueError: Start and end points must be finite and less than 1e154 apart
+ValueError: Start and end points must be finite and less than 1e154 apart
 pass 0: InvalidArgumentException
 pass 1: 0
 object(quark\math\Vector3)#4 (3) {
@@ -103,5 +103,5 @@ TypeError: quark\math\Vector3::subtract(): Argument #1 ($x) must be of type int|
 int(125)
 int(136)
 int(9223372036854775807)
-ValueError: Invalid explosion parameters: radius and stepLen must be positive and finite, rays between 2 and 64, and the rays at most 1e8 steps long in total
+ValueError: Invalid explosion parameters: radius and stepLen must be positive and finite, rays between 2 and 64, and the rays at most 16777216 steps long in total
 ValueError: Sample grid is too large
