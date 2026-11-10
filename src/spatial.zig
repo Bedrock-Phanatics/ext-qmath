@@ -18,6 +18,21 @@ fn optBool(ctx: Ctx, n: u32, default: bool) Error!bool {
     return if (ctx.call.argCount() >= n) try ctx.call.expectArg(n, .{ .bool = .{} }, {}) else default;
 }
 
+fn notFinite(name: []const u8) Error {
+    @branchHint(.cold);
+    return rt.valueError("{s} must be finite", .{name});
+}
+
+inline fn finite(v: f64, name: []const u8) Error!f64 {
+    return if (std.math.isFinite(v)) v else notFinite(name);
+}
+
+inline fn finiteVec(v: rt.NumVec, name: []const u8) Error!rt.NumVec {
+    const sum = v[0].toFloat() - v[0].toFloat() + (v[1].toFloat() - v[1].toFloat()) + (v[2].toFloat() - v[2].toFloat());
+    // x - x is zero for anything finite and NaN otherwise.
+    return if (sum == 0) v else notFinite(name);
+}
+
 fn typeErrorArg(n: u32, comptime what: [:0]const u8, zv: *c.zval) Error {
     c.zend_argument_type_error(n, what, c.zend_zval_value_name(zv));
     return error.PhpException;
@@ -111,29 +126,31 @@ pub const Physics = struct {
 
     pub fn motionStep(ctx: Ctx) Error!void {
         try ctx.call.expectArgCount(3, 7);
-        const m = try vector.argV3(ctx, 1);
+        const m = try finiteVec(try vector.argV3(ctx, 1), "motion");
         const p = physics.MotionParams{
-            .drag = try ctx.call.expectArg(2, .{ .float = .{} }, {}),
-            .gravity = try ctx.call.expectArg(3, .{ .float = .{} }, {}),
+            .drag = try finite(try ctx.call.expectArg(2, .{ .float = .{} }, {}), "drag"),
+            .gravity = try finite(try ctx.call.expectArg(3, .{ .float = .{} }, {}), "gravity"),
             .gravity_enabled = try optBool(ctx, 4, true),
             .drag_before_gravity = try optBool(ctx, 5, false),
-            .ground_friction = try optFloat(ctx, 6, 1.0),
+            .ground_friction = try finite(try optFloat(ctx, 6, 1.0), "groundFriction"),
             .threshold = try optFloat(ctx, 7, 0.00001),
         };
-        vector.newV3(rt.ret(ctx), physics.motionStep(m, p));
+        if (std.math.isNan(p.threshold)) return rt.valueError("threshold must not be NAN", .{});
+        vector.newV3(rt.ret(ctx), try finiteVec(physics.motionStep(m, p), "The resulting motion"));
     }
 
     pub fn knockBack(ctx: Ctx) Error!void {
         try ctx.call.expectArgCount(3, 5);
-        const m = try vector.argV3(ctx, 1);
-        const x = try ctx.call.expectArg(2, .{ .float = .{} }, {});
-        const z = try ctx.call.expectArg(3, .{ .float = .{} }, {});
-        const force = try optFloat(ctx, 4, 0.4);
+        const m = try finiteVec(try vector.argV3(ctx, 1), "motion");
+        const x = try finite(try ctx.call.expectArg(2, .{ .float = .{} }, {}), "x");
+        const z = try finite(try ctx.call.expectArg(3, .{ .float = .{} }, {}), "z");
+        const force = try finite(try optFloat(ctx, 4, 0.4), "force");
+        if (!std.math.isFinite(x * x + z * z)) return rt.valueError("x and z are too large to give a direction", .{});
         var limit: ?f64 = 0.4;
         if (ctx.call.argCount() >= 5) {
-            limit = if (rt.ztype(rt.arg(ctx, 5)) == rt.IS_NULL) null else try ctx.call.expectArg(5, .{ .float = .{} }, {});
+            limit = if (rt.ztype(rt.arg(ctx, 5)) == rt.IS_NULL) null else try finite(try ctx.call.expectArg(5, .{ .float = .{} }, {}), "verticalLimit");
         }
-        if (physics.knockBack(m, x, z, force, limit)) |r| vector.newV3(rt.ret(ctx), r);
+        if (physics.knockBack(m, x, z, force, limit)) |r| vector.newV3(rt.ret(ctx), try finiteVec(r, "The resulting motion"));
     }
 
     pub fn directionPlane(ctx: Ctx, yaw: f64) void {
@@ -167,11 +184,11 @@ pub const Physics = struct {
 
     pub fn predictTrajectory(ctx: Ctx) Error!void {
         try ctx.call.expectArgCount(5, 6);
-        var pos = try vector.argV3(ctx, 1);
-        var m = try vector.argV3(ctx, 2);
+        var pos = try finiteVec(try vector.argV3(ctx, 1), "position");
+        var m = try finiteVec(try vector.argV3(ctx, 2), "motion");
         const p = physics.MotionParams{
-            .drag = try ctx.call.expectArg(3, .{ .float = .{} }, {}),
-            .gravity = try ctx.call.expectArg(4, .{ .float = .{} }, {}),
+            .drag = try finite(try ctx.call.expectArg(3, .{ .float = .{} }, {}), "drag"),
+            .gravity = try finite(try ctx.call.expectArg(4, .{ .float = .{} }, {}), "gravity"),
             .drag_before_gravity = try optBool(ctx, 6, false),
         };
         const ticks = try ctx.call.expectArg(5, .{ .int = .{} }, {});
@@ -183,6 +200,10 @@ pub const Physics = struct {
             m = physics.motionStep(m, p);
             inline for (0..3) |a| {
                 pos[a] = pos[a].add(m[a]);
+                if (!std.math.isFinite(pos[a].toFloat())) {
+                    c.zend_string_efree(s);
+                    return rt.valueError("The trajectory leaves the finite range at tick {d}", .{t});
+                }
                 std.mem.writeInt(u64, dst[t * 24 + a * 8 ..][0..8], @bitCast(pos[a].toFloat()), .little);
             }
         }
