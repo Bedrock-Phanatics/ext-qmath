@@ -37,6 +37,13 @@ pub const Simplex = struct {
         return .{ .state = st };
     }
 
+    /// Quark's generator divides by the amplitude sum and throws when it is zero.
+    fn normalizable(self: *Simplex) Error!*noise.Simplex {
+        const s = try self.get();
+        if (s.amplitude() == 0) return rt.divisionByZero();
+        return s;
+    }
+
     pub fn getNoise2D(self: *Simplex, x: f64, y: f64) Error!f64 {
         return (try self.get()).getNoise2D(x, y);
     }
@@ -46,11 +53,13 @@ pub const Simplex = struct {
     }
 
     pub fn noise2D(self: *Simplex, x: f64, z: f64, normalized: ?bool) Error!f64 {
-        return (try self.get()).noise2D(x, z, normalized orelse false);
+        const n = normalized orelse false;
+        return (if (n) try self.normalizable() else try self.get()).noise2D(x, z, n);
     }
 
     pub fn noise3D(self: *Simplex, x: f64, y: f64, z: f64, normalized: ?bool) Error!f64 {
-        return (try self.get()).noise3D(x, y, z, normalized orelse false);
+        const n = normalized orelse false;
+        return (if (n) try self.normalizable() else try self.get()).noise3D(x, y, z, n);
     }
 
     pub fn getFastNoise1D(self: *Simplex, ctx: Ctx, x_size: i64, rate: i64, x: i64, y: i64, z: i64) Error!void {
@@ -105,7 +114,7 @@ pub const Simplex = struct {
         defer rt.allocator.free(buf);
         const set = rt.allocator.alloc(bool, g.len()) catch return rt.oom();
         defer rt.allocator.free(set);
-        noise.fastNoise3D(try self.get(), buf, set, g);
+        noise.fastNoise3D(try self.normalizable(), buf, set, g);
         const out = rt.ret(ctx);
         const xs: usize = @intCast(x_size + 1);
         const ys: usize = @intCast(y_size + 1);
@@ -136,7 +145,7 @@ pub const Simplex = struct {
         defer rt.allocator.free(buf);
         const set = rt.allocator.alloc(bool, g.len()) catch return rt.oom();
         defer rt.allocator.free(set);
-        noise.fastNoise3D(try self.get(), buf, set, g);
+        noise.fastNoise3D(try self.normalizable(), buf, set, g);
         const s: *c.zend_string = c.zend_string_alloc(buf.len * 8, false);
         const dst = s.val();
         for (buf, 0..) |v, k| std.mem.writeInt(u64, dst[k * 8 ..][0..8], @bitCast(v), .little);

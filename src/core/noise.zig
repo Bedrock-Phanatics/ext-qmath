@@ -154,6 +154,18 @@ pub const Simplex = struct {
         return 70.0 * n;
     }
 
+    /// What normalized noise is divided by, zero for some negative persistences.
+    pub fn amplitude(self: *const Simplex) f64 {
+        var amp: f64 = 1;
+        var max: f64 = 0;
+        var i: i64 = 0;
+        while (i < self.octaves) : (i += 1) {
+            max += amp;
+            amp *= self.persistence;
+        }
+        return max;
+    }
+
     pub fn noise2D(self: *const Simplex, x_in: f64, z_in: f64, normalized: bool) f64 {
         var result: f64 = 0;
         var amp: f64 = 1;
