@@ -15,7 +15,7 @@ fn fail(err: anyerror) Error {
         error.UnknownCell => rt.throwCe(region.exception_ce, "The explosion reaches a cell with no resistance data"),
         error.OutOfRange => rt.throwCe(region.exception_ce, "The explosion reaches outside the resistance grid"),
         error.RegionTooLarge => rt.valueError("Grid bounds are inverted or exceed CollisionRegion::MAX_CELLS", .{}),
-        error.InvalidArgument => rt.valueError("Invalid explosion parameters: radius and stepLen must be positive and finite, rays between 2 and 64, and the rays at most 1e8 steps long in total", .{}),
+        error.InvalidArgument => rt.valueError("Invalid explosion parameters: radius and stepLen must be positive and finite, rays between 2 and 64, and the rays at most 16777216 steps long in total", .{}),
         else => region.fail(err),
     };
 }
@@ -102,6 +102,14 @@ fn argGrid(ctx: Ctx, n: u32) Error!*ex.Grid {
     return &b.grid.?;
 }
 
+fn argSource(ctx: Ctx, n: u32) Error!rt.NumVec {
+    const v = try vector.argV3(ctx, n);
+    for (v) |component| {
+        if (!std.math.isFinite(component.toFloat())) return rt.valueError("The explosion source must be finite", .{});
+    }
+    return v;
+}
+
 fn retList(out: *c.zval, items: []const i64) void {
     rt.newArray(out, @intCast(items.len));
     for (items) |v| {
@@ -126,7 +134,7 @@ pub const ExplosionMath = struct {
     pub fn traceRays(ctx: Ctx) Error!void {
         try ctx.call.expectArgCount(3, 5);
         const g = try argGrid(ctx, 1);
-        const source = try vector.argV3(ctx, 2);
+        const source = try argSource(ctx, 2);
         const p = try params(ctx, 3);
         var list: std.ArrayList(i64) = .empty;
         defer list.deinit(rt.allocator);
@@ -138,7 +146,7 @@ pub const ExplosionMath = struct {
     pub fn traceRay(ctx: Ctx) Error!void {
         try ctx.call.expectArgCount(6, 8);
         const g = try argGrid(ctx, 1);
-        const source = try vector.argV3(ctx, 2);
+        const source = try argSource(ctx, 2);
         const radius = try ctx.call.expectArg(3, .{ .float = .{} }, {});
         const i = try ctx.call.expectArg(4, .{ .int = .{} }, {});
         const j = try ctx.call.expectArg(5, .{ .int = .{} }, {});

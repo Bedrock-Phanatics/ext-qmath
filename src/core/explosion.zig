@@ -9,7 +9,7 @@ const pow = @import("libm.zig").powFn;
 
 pub const max_cells: usize = 1 << 22;
 /// Step budget per explosion, the native loop can't be interrupted.
-const max_steps: f64 = 100_000_000;
+const max_steps: f64 = 1 << 24;
 
 pub const Error = error{ OutOfMemory, OutOfRange, UnknownCell, RegionTooLarge, InvalidArgument };
 
@@ -85,22 +85,25 @@ pub const Grid = struct {
     /// A NaN palette value marks its cells invalid.
     pub fn setSection(self: *Grid, sx: i64, sy: i64, sz: i64, indexes: *const [palette.section_cells]u16, values: []const f64) Error!void {
         const base = [3]i64{ sx *% 16, sy *% 16, sz *% 16 };
-        var lo: [3]i64 = undefined;
-        var hi: [3]i64 = undefined;
+        // Offsets into the section, so nothing here can overflow next to PHP_INT_MIN or PHP_INT_MAX.
+        var lo: [3]u5 = undefined;
+        var hi: [3]u5 = undefined;
         for (0..3) |a| {
             if (base[a] >> 4 != ([3]i64{ sx, sy, sz })[a]) return error.OutOfRange;
-            lo[a] = @max(base[a], self.min[a]);
-            hi[a] = @min(base[a] + 15, self.min[a] + self.size[a] - 1);
-            if (lo[a] > hi[a]) return;
+            const first = @as(i128, self.min[a]) - base[a];
+            const last = first + self.size[a] - 1;
+            if (first > 15 or last < 0) return;
+            lo[a] = @intCast(@max(first, 0));
+            hi[a] = @intCast(@min(last, 15));
         }
-        var x = lo[0];
-        while (x <= hi[0]) : (x += 1) {
-            var z = lo[2];
-            while (z <= hi[2]) : (z += 1) {
-                var y = lo[1];
-                while (y <= hi[1]) : (y += 1) {
-                    const v = values[indexes[palette.localIndex(@intCast(x - base[0]), @intCast(y - base[1]), @intCast(z - base[2]))]];
-                    const i = self.index(x, y, z).?;
+        var lx = lo[0];
+        while (lx <= hi[0]) : (lx += 1) {
+            var lz = lo[2];
+            while (lz <= hi[2]) : (lz += 1) {
+                var ly = lo[1];
+                while (ly <= hi[1]) : (ly += 1) {
+                    const v = values[indexes[palette.localIndex(@intCast(lx), @intCast(ly), @intCast(lz))]];
+                    const i = self.index(base[0] + lx, base[1] + ly, base[2] + lz).?;
                     if (std.math.isNan(v)) {
                         self.states[i] = .invalid;
                     } else {
@@ -269,6 +272,23 @@ test "sections fill the overlapping part of the grid" {
     try testing.expectEqual(State.unknown, g.states[g.index(-1, 15, 30).?]);
     try g.setSection(100, 0, 0, &idx, &.{ 0.5, 1 });
     try testing.expectError(error.OutOfRange, g.setSection(std.math.maxInt(i64), 0, 0, &idx, &.{ 0.5, 1 }));
+}
+
+test "sections fill grids at the ends of the integer range" {
+    const max = std.math.maxInt(i64);
+    const min = std.math.minInt(i64);
+    const idx: [palette.section_cells]u16 = @splat(0);
+    var hi = try Grid.init(testing.allocator, .{ max - 2, max - 2, max - 2 }, .{ max, max, max });
+    defer hi.deinit();
+    try hi.setSection(max >> 4, max >> 4, max >> 4, &idx, &.{0.5});
+    for (hi.states) |s| try testing.expectEqual(State.known, s);
+    try hi.setSection(min >> 4, 0, 0, &idx, &.{0.5});
+    var lo = try Grid.init(testing.allocator, .{ min, min, min }, .{ min + 17, min + 2, min + 2 });
+    defer lo.deinit();
+    try lo.setSection(min >> 4, min >> 4, min >> 4, &idx, &.{0.5});
+    try testing.expectEqual(State.known, lo.states[lo.index(min + 15, min + 2, min + 2).?]);
+    try testing.expectEqual(State.unknown, lo.states[lo.index(min + 16, min, min).?]);
+    try testing.expectError(error.RegionTooLarge, Grid.init(testing.allocator, .{ min, 0, 0 }, .{ max, 0, 0 }));
 }
 
 test "ray count matches the hollow cube of rays" {
